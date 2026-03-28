@@ -24,7 +24,7 @@ export const useNegotiation = () => {
 
         vapi.on("error", (err) => {
             console.error("Vapi SDK Error Details:", err);
-            setIsCallActive(false); // Safety: Stop UI active state on error
+            setIsCallActive(false);
             setLoading(false);
         });
 
@@ -36,28 +36,31 @@ export const useNegotiation = () => {
         try {
             const config = await getNegotiationSession(basketItems, user);
 
-            // Based on the docs you shared:
-            const callOptions = {
-                assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID, // Root level par
-                assistantOverrides: { // 'assistant' ki jagah 'assistantOverrides' try karo
-                    variableValues: {
-                        username: String(config.variableValues.username || "Customer"),
-                        items_in_basket: String(config.variableValues.items_in_basket),
-                        total_msrp: Number(config.variableValues.total_msrp),
-                        floor_limit: Number(config.variableValues.floor_limit),
-                        userId: String(config.variableValues.userId)
-                    }
+            const assistantId = import.meta.env.VITE_VAPI_ASSISTANT_ID;
+
+            const assistantOverrides = {
+                variableValues: {
+                    username: String(config.variableValues.username || "Customer"),
+                    items_in_basket: String(config.variableValues.items_in_basket),
+                    total_msrp: Number(config.variableValues.total_msrp),
+                    floor_limit: Number(config.variableValues.floor_limit),
+                    userId: String(config.variableValues.userId)
                 }
             };
 
-            console.log("🚀 DOCS-ALIGNED PAYLOAD:", JSON.stringify(callOptions, null, 2));
-            await vapi.start(callOptions);
+            console.log("🚀 Starting Vapi call with assistantId:", assistantId);
+            console.log("📦 Assistant Overrides:", JSON.stringify(assistantOverrides, null, 2));
+
+            // ✅ Correct Vapi SDK signature:
+            // vapi.start(assistantId: string, assistantOverrides?: object)
+            await vapi.start(assistantId, assistantOverrides);
 
         } catch (error) {
             console.error("Victor Connection Error:", error);
             setLoading(false);
         }
     };
+
     const endCall = () => vapi.stop();
 
     return { startVictorCall, endCall, loading };
