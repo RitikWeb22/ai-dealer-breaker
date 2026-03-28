@@ -9,12 +9,26 @@ export const getAssistantConfig = async (req, res) => {
         const totalMsrp = productsFromDB.reduce((sum, p) => sum + (p.msrp || 0), 0);
         const totalFloor = productsFromDB.reduce((sum, p) => sum + (p.floor_price || 0), 0);
 
+        // Helper function to convert number to "Hazaar" string
+        const formatToHazaar = (num) => {
+            if (num >= 1000) {
+                const thousands = num / 1000;
+                // Agar 13000 hai toh "13 hazaar", agar 13500 hai toh "13.5 hazaar"
+                return `${thousands} hazaar`;
+            }
+            return num.toString();
+        };
+
         return res.status(200).json({
             variableValues: {
                 username: user?.name || "Guest",
                 items_in_basket: selectedItems.join(", "),
-                total_msrp: totalMsrp,
-                floor_limit: totalFloor,
+                // Ab AI ko milega "13 hazaar" instead of 13000
+                total_msrp: formatToHazaar(totalMsrp),
+                floor_limit: formatToHazaar(totalFloor),
+                // Original numbers for calculation (Calculation ke liye raw numbers bhi bhej sakte ho agar tool use kar rahe ho)
+                raw_msrp: totalMsrp,
+                raw_floor: totalFloor,
                 userId: user?.id || "anonymous"
             }
         });
@@ -22,7 +36,6 @@ export const getAssistantConfig = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
 export const handleVapiWebhook = async (req, res) => {
     try {
         const { message } = req.body;
