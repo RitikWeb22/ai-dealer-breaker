@@ -36,12 +36,10 @@ export const useNegotiation = () => {
         try {
             const config = await getNegotiationSession(basketItems, user);
 
-            // Vapi SDK v2 Ephemeral Overrides
+            // Based on the docs you shared:
             const callOptions = {
-                // Option A: Assistant config directly at the root
-                assistant: {
-                    // Yahan aap Assistant ki ID ko 'id' field mein dalenge
-                    id: import.meta.env.VITE_VAPI_ASSISTANT_ID,
+                assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID, // Root level par
+                assistantOverrides: { // 'assistant' ki jagah 'assistantOverrides' try karo
                     variableValues: {
                         username: String(config.variableValues.username || "Customer"),
                         items_in_basket: String(config.variableValues.items_in_basket),
@@ -52,7 +50,7 @@ export const useNegotiation = () => {
                 }
             };
 
-            console.log("🚀 ATTEMPTING EPHEMERAL CALL...");
+            console.log("🚀 DOCS-ALIGNED PAYLOAD:", JSON.stringify(callOptions, null, 2));
             await vapi.start(callOptions);
 
         } catch (error) {
