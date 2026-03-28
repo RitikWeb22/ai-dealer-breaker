@@ -3,7 +3,7 @@ import axios from 'axios';
 
 export const getNegotiationSession = async (basketItems, user) => {
     const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/api/negotiation/start-session`,
+        `${import.meta.env.VITE_API_URL}/api/negotiation/start-session`,
 
         {
             selectedItems: basketItems.map(item => item.name), // ✅ backend expects names, not objects
