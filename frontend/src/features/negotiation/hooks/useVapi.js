@@ -38,7 +38,7 @@ export const useNegotiation = () => {
 
             // ERROR FIX: Removed 'assistantOverrides' layer
             const callOptions = {
-                assistantId: import.meta.env.VITE_ASSISTANT_ID,
+                assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID,
                 assistant: {
                     variableValues: {
                         username: String(config.variableValues.username || "Customer"),
