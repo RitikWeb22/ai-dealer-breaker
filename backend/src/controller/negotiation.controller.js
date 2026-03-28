@@ -79,8 +79,8 @@ export const startVapiSession = async (req, res) => {
 
         const vapiConfig = {
             firstMessage: previousWins > 0
-                ? `Welcome back ${user.name}. I haven't forgotten how you robbed me last time. What do you want now?`
-                : `Yeah, yeah... Hello ${user.name}. I see you've got your eyes on the ${selectedItems.join(" and ")}. I'm valuing this bundle at ₹${totalMsrp}. What's your offer?`,
+                ? `Welcome back ${user?.name || 'friend'}. I haven't forgotten how you robbed me last time.`
+                : `Hello ${user?.name || 'there'}. I see you've got your eyes on the ${selectedItems.join(" and ")}.`,
 
             variableValues: {
                 username: user.name,
