@@ -11,6 +11,9 @@ export const useNegotiation = () => {
     const startVictorCall = async (basketItems, user) => {
         setLoading(true);
         try {
+            // Debug: Log payload before API call
+            console.log("DEBUG: basketItems", basketItems);
+            console.log("DEBUG: user", user);
             const overrides = await getNegotiationSession(basketItems, user);
 
             vapi.start(import.meta.env.VITE_VAPI_ASSISTANT_ID, {
