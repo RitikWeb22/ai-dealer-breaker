@@ -36,12 +36,12 @@ export const useNegotiation = () => {
         try {
             const config = await getNegotiationSession(basketItems, user);
 
-            // Vapi expects this EXACT structure
+            // ERROR FIX: Removed 'assistantOverrides' layer
             const callOptions = {
-                assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID,
-                assistantOverrides: { // Note: some versions use 'assistant' or 'assistantOverrides'
+                assistantId: import.meta.env.VITE_ASSISTANT_ID,
+                assistant: {
                     variableValues: {
-                        username: String(config.variableValues.username),
+                        username: String(config.variableValues.username || "Customer"),
                         items_in_basket: String(config.variableValues.items_in_basket),
                         total_msrp: Number(config.variableValues.total_msrp),
                         floor_limit: Number(config.variableValues.floor_limit),
@@ -50,7 +50,7 @@ export const useNegotiation = () => {
                 }
             };
 
-            console.log("🚀 FINAL ATTEMPT - Sending Options:", callOptions);
+            console.log("🚀 CORRECTED PAYLOAD:", JSON.stringify(callOptions, null, 2));
             await vapi.start(callOptions);
 
         } catch (error) {
@@ -58,7 +58,6 @@ export const useNegotiation = () => {
             setLoading(false);
         }
     };
-
     const endCall = () => vapi.stop();
 
     return { startVictorCall, endCall, loading };
