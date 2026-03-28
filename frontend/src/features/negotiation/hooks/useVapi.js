@@ -36,12 +36,12 @@ export const useNegotiation = () => {
         try {
             const config = await getNegotiationSession(basketItems, user);
 
-            // Vapi SDK v2 Strict Structure + Explicit Casting
+            // Vapi expects this EXACT structure
             const callOptions = {
                 assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID,
-                assistant: {
+                assistantOverrides: { // Note: some versions use 'assistant' or 'assistantOverrides'
                     variableValues: {
-                        username: String(config.variableValues.username || "Customer"),
+                        username: String(config.variableValues.username),
                         items_in_basket: String(config.variableValues.items_in_basket),
                         total_msrp: Number(config.variableValues.total_msrp),
                         floor_limit: Number(config.variableValues.floor_limit),
@@ -50,12 +50,11 @@ export const useNegotiation = () => {
                 }
             };
 
-            console.log("🚀 FINAL ATTEMPT - Payload:", JSON.stringify(callOptions, null, 2));
+            console.log("🚀 FINAL ATTEMPT - Sending Options:", callOptions);
             await vapi.start(callOptions);
 
         } catch (error) {
             console.error("Victor Connection Error:", error);
-            setIsCallActive(false);
             setLoading(false);
         }
     };
