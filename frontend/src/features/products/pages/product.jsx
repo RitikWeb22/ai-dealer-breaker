@@ -27,7 +27,7 @@ const ProductPage = () => {
     <div className="min-h-screen bg-[#0a0a0a] text-white p-8">
       <header className="flex justify-between items-center mb-12">
         <h1 className="text-3xl font-black tracking-tighter uppercase">
-          Victor's Pawn Shop
+          Ai Deal Breaker Shop
         </h1>
         <div className="bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
           Items Selected: {selectedItems.length}
@@ -63,7 +63,7 @@ const ProductPage = () => {
             disabled={loading}
             className="w-full py-4 bg-white text-black font-black uppercase tracking-widest rounded-full shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-105 transition-transform disabled:opacity-50"
           >
-            {loading ? "Waking up Victor..." : "Talk to Victor"}
+            {loading ? "Waking up Shopkeeper..." : "Talk to Shopkeeper"}
           </button>
         </div>
       )}
