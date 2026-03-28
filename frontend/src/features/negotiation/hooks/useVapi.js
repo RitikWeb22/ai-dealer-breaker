@@ -36,10 +36,10 @@ export const useNegotiation = () => {
         try {
             const config = await getNegotiationSession(basketItems, user);
 
-            // SOLUTION: assistantId is OUTSIDE, variables are INSIDE assistant
+            // SOLUTION: assistantId and assistant are SIBLINGS, not parent-child
             const callOptions = {
-                assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID,
-                assistant: {
+                assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID, // Bahar rakho
+                assistant: { // Iske andar sirf variables honge
                     variableValues: {
                         username: String(config.variableValues.username || "Customer"),
                         items_in_basket: String(config.variableValues.items_in_basket),
@@ -50,13 +50,9 @@ export const useNegotiation = () => {
                 }
             };
 
-            // Agar upar wala fail kare (SDK version pe depend karta hai), toh ye try karo:
-            // const callOptions = {
-            //    assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID,
-            //    variableValues: { ... } // Directly here
-            // };
+            console.log("🚀 SENDING CLEAN PAYLOAD:", JSON.stringify(callOptions, null, 2));
 
-            console.log("🚀 TESTING UPDATED STRUCTURE:", callOptions);
+            // Start the call
             await vapi.start(callOptions);
 
         } catch (error) {
