@@ -36,7 +36,7 @@ export const useNegotiation = () => {
         try {
             const config = await getNegotiationSession(basketItems, user);
 
-            // ERROR FIX: Removed 'assistantOverrides' layer
+            // SOLUTION: assistantId is OUTSIDE, variables are INSIDE assistant
             const callOptions = {
                 assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID,
                 assistant: {
@@ -50,7 +50,13 @@ export const useNegotiation = () => {
                 }
             };
 
-            console.log("🚀 CORRECTED PAYLOAD:", JSON.stringify(callOptions, null, 2));
+            // Agar upar wala fail kare (SDK version pe depend karta hai), toh ye try karo:
+            // const callOptions = {
+            //    assistantId: import.meta.env.VITE_VAPI_ASSISTANT_ID,
+            //    variableValues: { ... } // Directly here
+            // };
+
+            console.log("🚀 TESTING UPDATED STRUCTURE:", callOptions);
             await vapi.start(callOptions);
 
         } catch (error) {
