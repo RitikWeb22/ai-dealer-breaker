@@ -1,34 +1,40 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { fetchAllProducts } from "../services/product.api";
 import { useNegotiation } from "../../negotiation/hooks/useVapi";
 
 const ProductPage = () => {
   const [products, setProducts] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
-  // vapi instance ko extract kar rahe hain taaki stop() call kar sakein
+  const [timer, setTimer] = useState(0);
+  const timerRef = useRef(null);
+
+  // useNegotiation hook se loading aur isConnected mil raha hai
   const { startVictorCall, loading, isConnected, vapi } = useNegotiation();
 
   useEffect(() => {
     fetchAllProducts().then((data) => setProducts(data.products));
   }, []);
 
-  // Auto-cut logic: Jab Alex "THANK_YOU_BYE" bolega
+  // TIMER LOGIC
   useEffect(() => {
-    if (!vapi) return;
+    if (isConnected) {
+      console.log("Call Connected! Starting Timer...");
+      setTimer(0);
+      timerRef.current = setInterval(() => {
+        setTimer((prev) => prev + 1);
+      }, 1000);
+    } else {
+      console.log("Call Disconnected! Stopping Timer...");
+      clearInterval(timerRef.current);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [isConnected]);
 
-    const handleMessage = (message) => {
-      if (
-        message.type === "transcript" &&
-        message.transcript.includes("THANK_YOU_BYE")
-      ) {
-        console.log("Alex said bye, disconnecting...");
-        setTimeout(() => vapi.stop(), 2000); // 2 second baad cut
-      }
-    };
-
-    vapi.on("message", handleMessage);
-    return () => vapi.off("message", handleMessage);
-  }, [vapi]);
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const toggleSelect = (name) => {
     setSelectedItems((prev) =>
@@ -42,18 +48,14 @@ const ProductPage = () => {
     startVictorCall(selectedItems, user);
   };
 
-  const handleEndCall = () => {
-    if (vapi) vapi.stop();
-  };
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white p-8 pb-32">
+    <div className="min-h-screen bg-[#0a0a0a] text-white p-8 pb-48 relative">
       <header className="flex justify-between items-center mb-12">
-        <h1 className="text-3xl font-black tracking-tighter uppercase">
+        <h1 className="text-3xl font-black tracking-tighter uppercase italic">
           Ai Deal Breaker Shop
         </h1>
-        <div className="bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
-          Items Selected: {selectedItems.length}
+        <div className="bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800 text-sm">
+          {selectedItems.length} Items Selected
         </div>
       </header>
 
@@ -63,7 +65,7 @@ const ProductPage = () => {
           <div
             key={product._id}
             onClick={() => toggleSelect(product.name)}
-            className={`cursor-pointer p-5 rounded-2xl border transition-all ${
+            className={`cursor-pointer p-5 rounded-2xl border transition-all duration-300 ${
               selectedItems.includes(product.name)
                 ? "border-white bg-zinc-800"
                 : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
@@ -77,35 +79,48 @@ const ProductPage = () => {
               />
             </div>
             <h3 className="font-bold text-lg">{product.name}</h3>
-            <p className="text-zinc-500 text-sm mb-3 line-clamp-2">
-              {product.description}
-            </p>
-            <span className="text-xl font-mono">₹{product.msrp}</span>
+            <span className="text-xl font-mono font-bold text-green-400">
+              ₹{product.msrp}
+            </span>
           </div>
         ))}
       </div>
 
-      {/* Dynamic Action Bar */}
-      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-md px-4 flex flex-col gap-4">
-        {/* Disconnect Button (Only shows when connected) */}
-        {isConnected && (
-          <button
-            onClick={handleEndCall}
-            className="w-full py-3 bg-red-600 text-white font-bold rounded-full hover:bg-red-700 transition-colors"
-          >
-            End Conversation
-          </button>
-        )}
+      {/* --- FLOATING ACTION PANEL (The Fix) --- */}
+      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-[9999]">
+        {/* CASE 1: JAB CALL CHAL RAHI HO */}
+        {isConnected ? (
+          <div className="bg-white text-black p-5 rounded-[2.5rem] shadow-[0_20px_60px_rgba(255,255,255,0.3)] flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-10 duration-500">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-red-600 rounded-full animate-ping" />
+                <span className="font-black uppercase tracking-tighter text-sm">
+                  Alex Live
+                </span>
+              </div>
+              <div className="font-mono text-2xl font-black tabular-nums">
+                {formatTime(timer)}
+              </div>
+            </div>
 
-        {/* Negotiate Button */}
-        {!isConnected && selectedItems.length > 0 && (
-          <button
-            onClick={handleNegotiate}
-            disabled={loading}
-            className="w-full py-4 bg-white text-black font-black uppercase tracking-widest rounded-full shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-105 transition-transform disabled:opacity-50"
-          >
-            {loading ? "Calling Alex..." : "Talk to Shopkeeper"}
-          </button>
+            <button
+              onClick={() => vapi?.stop()}
+              className="w-full py-4 bg-black text-white font-black uppercase rounded-3xl hover:bg-zinc-800 transition-colors"
+            >
+              End Conversation
+            </button>
+          </div>
+        ) : (
+          /* CASE 2: JAB ITEMS SELECTED HAIN PAR CALL NAHI CHAL RAHI */
+          selectedItems.length > 0 && (
+            <button
+              onClick={handleNegotiate}
+              disabled={loading}
+              className="w-full py-6 bg-white text-black font-black uppercase tracking-widest rounded-[2.5rem] shadow-[0_10px_40px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+            >
+              {loading ? "Waking up Alex..." : "Talk to Shopkeeper"}
+            </button>
+          )
         )}
       </div>
     </div>
