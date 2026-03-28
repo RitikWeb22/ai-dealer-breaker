@@ -26,7 +26,7 @@ app.use(cors({
 app.use("/api/auth", authRouter)
 
 // agent negotiation routes
-app.use("/api/vapi", NegotiationRouter)
+app.use("/api/negotiation", NegotiationRouter)
 
 // product routes
 app.use("/api/product", productRouter)
