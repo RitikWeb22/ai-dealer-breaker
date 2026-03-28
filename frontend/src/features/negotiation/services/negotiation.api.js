@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/vapi';
+const API_URL = `${import.meta.env.VITE_API_URL}/api/vapi`;
 
 export const getNegotiationSession = async (items, user) => {
     const response = await axios.post(`${API_URL}/start-session`, {

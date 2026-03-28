@@ -1,4 +1,5 @@
 import negotiationModel from '../models/negotiation.model.js'
+import Product from '../models/product.model.js';
 import axios from 'axios';
 
 
@@ -66,33 +67,23 @@ export const startVapiSession = async (req, res) => {
     try {
         const { selectedItems, user } = req.body;
 
-        // 1. DB se actual prices fetch karo (User sirf names bhej raha hai)
+        // 1. Fetch products
         const products = await Product.find({ name: { $in: selectedItems } });
+        if (products.length === 0) {
+            return res.status(404).json({ error: "No products found" });
+        }
 
         const totalMsrp = products.reduce((sum, p) => sum + p.msrp, 0);
         const totalFloor = products.reduce((sum, p) => sum + p.floor_price, 0);
 
-        // 2. Victor (AI) ke liye dynamic instructions prepare karo
-        // Ye data frontend ko nahi dikhega, direct Vapi ko jayega
-        const assistantOverrides = {
-            variableValues: {
-                username: user.name,
-                items_in_basket: selectedItems.join(", "),
-                total_msrp: totalMsrp,
-                floor_limit: totalFloor, // Secret Floor!
-                userId: user.id
-            }
-        };
+        // 2. Check history for dynamic greeting (Optional but cool)
+        const previousWins = await negotiationModel.countDocuments({ userId: user.id });
 
-        res.status(200).json(assistantOverrides);
-    } catch (error) {
-        res.status(500).json({ error: "Session failed" });
-    }
-    const vapiConfig = {
-        assistantOverrides: {
+        // 3. Prepare final config
+        const vapiConfig = {
             firstMessage: previousWins > 0
-                ? `Welcome back ${user.name}. I see you've made ${previousWins} successful deals. Not Today! Let's see if you can get a better deal this time.`
-                : `Hello ${user.name}! I'm Alex, your shopkeeper for today. I see these items in your basket: ${selectedItems.join(", ")}. don't touch anything and let me know when you're ready to negotiate!`,
+                ? `Welcome back ${user.name}. Ready to lose more money?`
+                : `Hello ${user.name}. Don't touch anything. What do you want?`,
             variableValues: {
                 username: user.name,
                 items_in_basket: selectedItems.join(", "),
@@ -100,12 +91,14 @@ export const startVapiSession = async (req, res) => {
                 floor_limit: totalFloor,
                 userId: user.id
             }
+        };
 
-        }
-    };
-
-}
-
+        return res.status(200).json(vapiConfig); // 👈 Ek hi baar response bhejein
+    } catch (error) {
+        console.error("Session Error:", error);
+        return res.status(500).json({ error: "Session failed", details: error.message });
+    }
+};
 export const updateVictorPersonality = async (req, res) => {
     try {
         const { userId } = req.body;
