@@ -1,9 +1,11 @@
-import NegotiationPage from "../../negotiation/pages/NegotiationRoom";
+// import NegotiationPage from "../../negotiation/pages/NegotiationRoom";
+import ProductPage from "../../products/pages/product";
 
 const Home = () => {
   return (
     <div>
-      <NegotiationPage />
+      {/* <NegotiationPage /> */}
+      <ProductPage />
     </div>
   );
 };

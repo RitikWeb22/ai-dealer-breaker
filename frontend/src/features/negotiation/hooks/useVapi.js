@@ -4,7 +4,6 @@ import { getNegotiationSession } from '../services/negotiation.api';
 import { useNegotiationContext } from '../negotiation.context';
 
 const vapi = new Vapi(import.meta.env.VITE_VAPI_PUBLIC_KEY);
-
 export const useNegotiation = () => {
     const { setIsCallActive } = useNegotiationContext();
     const [loading, setLoading] = useState(false);
