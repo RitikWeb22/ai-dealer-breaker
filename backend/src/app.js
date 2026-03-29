@@ -14,6 +14,8 @@ const app = express();
 app.use(express.json()); // Body parser for JSON payloads
 app.use(cookieParser()); // Parser for auth tokens
 
+app.use(express.static('public')); // Static files (if any, like images or frontend build)
+
 // --- 2. Correct CORS Configuration ---
 // Kyunki aapka frontend local (5173) hai aur backend Render par, 
 // isliye origin check aur credentials true hona zaroori hai.
