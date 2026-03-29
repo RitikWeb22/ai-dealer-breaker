@@ -22,6 +22,7 @@ app.use(express.static('public')); // Static files (if any, like images or front
 const allowedOrigins = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'https://ai-dealer-breaker.onrender.com'
     // Yahan apna deployed frontend URL bhi add kar dena agar baad mein deploy karo toh
 ];
 
