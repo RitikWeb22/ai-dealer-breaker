@@ -44,8 +44,7 @@ app.use(cors({
 }));
 
 // Handle Preflight (OPTIONS) requests globally
-app.options('*', cors());
-
+app.options('(.*)', cors());
 // --- 3. Routes Mapping ---
 
 app.use("/api/auth", authRouter);
