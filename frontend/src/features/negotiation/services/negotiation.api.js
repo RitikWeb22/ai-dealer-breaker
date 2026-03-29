@@ -1,20 +1,20 @@
-// negotiation.api.js
 import axios from 'axios';
 
 export const getNegotiationSession = async (basketItems, user) => {
-    // 1. Logic: Agar item object hai toh name lo, agar string hai toh wahi lo
+    // 1. Items clean up logic
     const cleanItems = basketItems.map(item => {
         if (typeof item === 'object' && item !== null) {
-            return item.name; // Agar object hai (e.g. {name: 'nike shoes'})
+            return item.name;
         }
-        return item; // Agar direct string hai (e.g. 'nike shoes')
-    }).filter(Boolean); // Kisi bhi null/undefined ko remove karne ke liye
+        return item;
+    }).filter(Boolean);
 
+    // 2. Fix: user.username ka use karein (kyuki AuthContext mein yahi hai)
     const payload = {
         selectedItems: cleanItems,
         user: {
-            id: user?.id || "user_01",
-            name: user?.name || "Ritik"
+            id: user?._id || "user_01", // MongoDB ki ID '_id' hoti hai
+            name: user?.username || "Ritik" // 'name' ki jagah 'username' check karein
         }
     };
 
