@@ -38,9 +38,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
 }));
 
-// Handle Preflight (OPTIONS) requests globally
-app.options('(.*)', cors());
-// --- 3. Routes Mapping ---
+
 
 app.use("/api/auth", authRouter);
 app.use("/api/negotiation", NegotiationRouter);
