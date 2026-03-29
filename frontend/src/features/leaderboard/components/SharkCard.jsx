@@ -1,31 +1,33 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { HiOutlineFire, HiTrendingDown } from "react-icons/hi";
+import { HiTrendingDown } from "react-icons/hi";
 import Navbar from "../../auth/components/Navbar"; // 1. Navbar Import karein (Path check karlein)
 import { useAuth } from "../../auth/hooks/useAuth"; // Auth context se user lene ke liye
 
 const Leaderboard = () => {
+  const { user, authLoading } = useAuth(); // 2. Auth context se user aur loading state lein
   const [sharks, setSharks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { user, loading: authLoading } = useAuth(); // 2. User data fetch karein
 
   useEffect(() => {
-    const fetchLeaderboard = async () => {
+    const fetchSharks = async () => {
       try {
         const res = await axios.get(
           `${import.meta.env.VITE_BACKEND_URL}/api/vapi/leaderboard`,
+          {
+            withCredentials: true, // Cookies ke liye
+          },
         );
-        setSharks(res.data.data);
+        setSharks(res.data.data); // Assuming backend se { data: [...] } format mein aa raha hai
       } catch (err) {
         console.error("Leaderboard fetch error:", err);
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     };
-    fetchLeaderboard();
-  }, []);
 
+    fetchSharks();
+  }, []);
   return (
     <div className="bg-[#070707] min-h-screen text-white font-sans selection:bg-blue-500/30">
       {/* 3. Navbar ko yahan place karein */}
