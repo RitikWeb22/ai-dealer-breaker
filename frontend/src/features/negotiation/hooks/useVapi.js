@@ -4,7 +4,6 @@ import Vapi from "@vapi-ai/web";
 import { getNegotiationSession } from '../services/negotiation.api';
 import { useNegotiationContext } from '../negotiation.context';
 
-// Singleton instance
 const vapi = new Vapi(import.meta.env.VITE_VAPI_PUBLIC_KEY);
 
 export const useNegotiation = () => {
@@ -15,53 +14,45 @@ export const useNegotiation = () => {
 
     useEffect(() => {
         const onCallStart = () => {
-            console.log("📞 Call started");
+            console.log("📞 Negotiation Started");
             setIsCallActive(true);
             hasProcessedDeal.current = false;
         };
 
         const onCallEnd = () => {
-            console.log("⏹️ Call ended");
+            console.log("⏹️ Negotiation Ended");
             setIsCallActive(false);
-            // Optional: Redirect to leaderboard on normal end
-            if (hasProcessedDeal.current) navigate("/leaderboard");
-        };
-
-        const onError = (err) => {
-            console.error("❌ Vapi SDK Error:", err);
-            setIsCallActive(false);
-            setLoading(false);
+            // Agar deal confirm hui thi, toh call khatam hote hi leaderboard bhejo
+            if (hasProcessedDeal.current) {
+                navigate("/leaderboard");
+            }
         };
 
         const onMessage = (message) => {
-            // Frontend side tool-call detection (Fallback if Webhook is slow)
-            if (message.type === 'tool-calls' && !hasProcessedDeal.current) {
+            // Frontend side check for tool calls
+            if (message.type === 'tool-calls') {
                 const dealTool = message.toolCalls?.find(tc => tc.function?.name === "confirmDeal");
-                if (dealTool) {
+                if (dealTool && !hasProcessedDeal.current) {
                     hasProcessedDeal.current = true;
-                    console.log("🎯 Deal Finalized! AI is speaking final words...");
+                    console.log("🎯 Deal locked! Redirecting soon...");
 
-                    // Note: Backend Webhook is already saving to DB. 
-                    // This frontend logic is just for UX/Redirection.
+                    // AI ko baat khatam karne ka mauka do
                     setTimeout(() => {
                         vapi.stop();
-                        navigate("/leaderboard");
-                    }, 6000);
+                    }, 5000);
                 }
             }
         };
 
         vapi.on("call-start", onCallStart);
         vapi.on("call-end", onCallEnd);
-        vapi.on("error", onError);
         vapi.on("message", onMessage);
+        vapi.on("error", (e) => {
+            console.error("Vapi Error:", e);
+            setIsCallActive(false);
+        });
 
-        return () => {
-            vapi.off("call-start", onCallStart);
-            vapi.off("call-end", onCallEnd);
-            vapi.off("error", onError);
-            vapi.off("message", onMessage);
-        };
+        return () => vapi.removeAllListeners();
     }, [setIsCallActive, navigate]);
 
     const startVictorCall = useCallback(async (basketItems, user) => {
@@ -69,14 +60,12 @@ export const useNegotiation = () => {
         setLoading(true);
 
         try {
-            // 1. Get Config from your Backend (getAssistantConfig)
             const config = await getNegotiationSession(basketItems, user);
 
-            // 2. CRITICAL: Vapi expects assistantOverrides as the second argument
-            // The structure MUST match the Assistant object schema
+            // 🛠️ IMPORTANT: Ye values Assistant ki memory mein save ho jayengi
             const assistantOverrides = {
                 variableValues: {
-                    username: String(config.variableValues?.username || user?.username || "Shark"),
+                    username: String(config.variableValues?.username || user?.username || "Rohit"),
                     userId: String(config.variableValues?.userId || user?._id || "anonymous"),
                     items_in_basket: String(config.variableValues?.items_in_basket),
                     raw_msrp: Number(config.variableValues?.raw_msrp),
@@ -86,24 +75,15 @@ export const useNegotiation = () => {
                 }
             };
 
-            console.log("🚀 Starting Call with Overrides:", assistantOverrides.variableValues);
-
-            // Ensure permissions are requested before start
             await vapi.start(import.meta.env.VITE_VAPI_ASSISTANT_ID, assistantOverrides);
 
         } catch (error) {
-            console.error("❌ Connection Error:", error);
+            console.error("❌ Failed to start:", error);
             setIsCallActive(false);
         } finally {
             setLoading(false);
         }
     }, [isCallActive, loading, setIsCallActive]);
 
-    return {
-        startVictorCall,
-        loading,
-        isConnected: isCallActive,
-        vapi,
-        stopCall: () => vapi.stop()
-    };
+    return { startVictorCall, loading, isConnected: isCallActive, stopCall: () => vapi.stop() };
 };
