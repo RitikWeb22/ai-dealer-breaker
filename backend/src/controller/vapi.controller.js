@@ -43,52 +43,64 @@ export const handleVapiWebhook = async (req, res) => {
     try {
         const { message } = req.body;
 
+        // 1. Webhook check for tool calls
         if (message?.type === 'tool-calls') {
-            const toolCall = message.toolCalls?.find(t => t.function?.name === 'confirmDeal');
+            const toolCalls = message.toolCalls || [];
 
-            if (toolCall) {
-                let args = toolCall.function.arguments;
-                if (typeof args === 'string') args = JSON.parse(args);
+            const results = await Promise.all(toolCalls.map(async (toolCall) => {
+                if (toolCall.function?.name === 'confirmDeal') {
+                    let args = toolCall.function.arguments;
+                    if (typeof args === 'string') args = JSON.parse(args);
 
-                // ✅ Extraction from 'message.call.variables'
-                const vars = message.call?.variables || {};
+                    const vars = message.call?.variables || {};
 
-                // Fallback logic agar variables missing hon toh
-                const msrp = Number(vars.raw_msrp) || 0;
-                const floor = Number(vars.raw_floor) || 0;
-                const finalPriceNum = Number(args.finalPrice) || 0;
+                    // ✅ Precise Variable Mapping
+                    const msrp = Number(vars.raw_msrp) || 0;
+                    const floor = Number(vars.raw_floor) || (msrp * 0.75);
+                    const finalPriceNum = Number(args.finalPrice) || 0;
 
-                const dbUsername = vars.username || "Guest Shark";
-                const dbUserId = vars.userId || "65f1a2b3c4d5e6f7a8b9c0d1";
+                    const dbUsername = vars.username || "Guest Shark";
+                    const dbUserId = vars.userId || "65f1a2b3c4d5e6f7a8b9c0d1";
 
-                // ✅ Score Logic
-                let efficiency = 0;
-                if (msrp > floor && (msrp - floor) > 0) {
-                    efficiency = ((msrp - finalPriceNum) / (msrp - floor)) * 100;
+                    // ✅ Efficiency logic with safety
+                    let efficiency = 0;
+                    if (msrp > floor) {
+                        efficiency = ((msrp - finalPriceNum) / (msrp - floor)) * 100;
+                    }
+                    const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
+
+                    // ✅ Background Save (Don't let DB slow down the response)
+                    negotiationModel.create({
+                        userId: dbUserId,
+                        username: dbUsername,
+                        items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Items"],
+                        totalMsrp: msrp,
+                        finalPrice: finalPriceNum,
+                        floorPrice: floor,
+                        efficiencyScore: Number(finalEfficiency.toFixed(2))
+                    }).then(data => console.log(`✅ [DB SAVE] Success for ${dbUsername}`))
+                        .catch(err => console.error("❌ [DB SAVE ERROR]:", err.message));
+
+                    // ✅ Vapi expects this exact result structure
+                    return {
+                        toolCallId: toolCall.id,
+                        result: "Deal confirmed and recorded. The call will now end."
+                    };
                 }
-                const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
+                return { toolCallId: toolCall.id, result: "Tool processed." };
+            }));
 
-                await negotiationModel.create({
-                    userId: dbUserId,
-                    username: dbUsername,
-                    items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Product"],
-                    totalMsrp: msrp,
-                    finalPrice: finalPriceNum,
-                    floorPrice: floor,
-                    efficiencyScore: Number(finalEfficiency.toFixed(2))
-                });
-
-                console.log(`🚀 [SAVED] ${dbUsername} scored ${finalEfficiency}%`);
-
-                return res.status(201).json({
-                    results: [{ toolCallId: toolCall.id, result: "Deal stored!" }]
-                });
-            }
+            // ✅ CRITICAL: Status 201 for Vapi tool-call responses
+            return res.status(201).json({ results });
         }
-        return res.status(200).json({ status: "ok" });
+
+        // 2. Handle other message types (speech-update, etc.) to prevent timeout
+        return res.status(200).json({ status: "received" });
+
     } catch (error) {
-        console.error("❌ Webhook Error:", error);
-        return res.status(200).json({ error: "Fail-safe" });
+        console.error("❌ Webhook Fatal Error:", error);
+        // Fallback response to prevent Vapi from retrying infinitely
+        return res.status(200).json({ error: "Fail-safe triggered" });
     }
 };
 export const getLeaderboard = async (req, res) => {
