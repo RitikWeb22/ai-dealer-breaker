@@ -50,60 +50,68 @@ export const handleVapiWebhook = async (req, res) => {
     try {
         const { message } = req.body;
 
-        // Vapi sends 'tool-calls' when Alex triggers the function
+        // 1. Check for tool-calls plural
         if (message?.type === 'tool-calls') {
-            // Hum multiple tool calls handle kar sakte hain
             const results = await Promise.all(message.toolCalls.map(async (toolCall) => {
                 if (toolCall.function.name === 'confirmDeal') {
+                    // Extract arguments from Alex
                     const { finalPrice, items } = toolCall.function.arguments;
 
-                    // Call variables se data nikalna
+                    // Extract hidden variables from call context
                     const vars = message.call?.variables || {};
-                    const msrp = vars.raw_msrp || 0;
-                    const floor = vars.raw_floor || 0;
+                    const msrp = Number(vars.raw_msrp) || 0;
+                    const floor = Number(vars.raw_floor) || 0;
+                    const finalPriceNum = Number(finalPrice);
 
-                    // Efficiency Score: 100 means they got the floor price (Best Negotiator)
-                    // 0 means they paid full MSRP.
+                    // 2. Efficiency Score Logic
                     let efficiency = 0;
-                    if (msrp !== floor) {
-                        efficiency = ((msrp - finalPrice) / (msrp - floor)) * 100;
+                    if (msrp > floor) {
+                        efficiency = ((msrp - finalPriceNum) / (msrp - floor)) * 100;
                     }
 
-                    // Save to MongoDB
+                    // 3. Save to MongoDB (Field name alignment)
                     await negotiationModel.create({
                         userId: vars.userId || "anonymous",
                         username: vars.username || "Guest",
-                        items: items || vars.items_in_basket,
+                        // Ensure items is an array
+                        item: Array.isArray(items) ? items : (typeof items === 'string' ? items.split(',') : [vars.items_in_basket]),
                         totalMsrp: msrp,
-                        finalPrice: Number(finalPrice),
+                        finalPrice: finalPriceNum,
                         floorPrice: floor,
-                        efficiencyScore: Math.min(Math.max(efficiency, 0), 100).toFixed(2) // Limit 0-100
+                        efficiencyScore: Math.min(Math.max(efficiency, 0), 100).toFixed(2)
                     });
 
-                    console.log(`✅ Deal Saved for ${vars.username}: ₹${finalPrice}`);
-                    return { toolCallId: toolCall.id, result: "Deal Recorded on Leaderboard!" };
+                    console.log(`✅ Deal Saved: ₹${finalPriceNum} for ${vars.username}`);
+
+                    // 4. CRITICAL: Exact format for Vapi to acknowledge and DISCONNECT
+                    return {
+                        toolCallId: toolCall.id,
+                        result: "Deal successfully recorded on leaderboard."
+                    };
                 }
                 return { toolCallId: toolCall.id, result: "Tool not recognized" };
             }));
 
+            // 5. Must return 201 with results array
             return res.status(201).json({ results });
         }
 
         return res.status(200).json({ status: "received" });
 
     } catch (error) {
-        console.error("❌ Webhook error:", error);
-        res.status(500).json({ error: "Webhook Failed" });
+        console.error("❌ Webhook Error:", error);
+        // Fail-safe response to prevent Vapi from hanging
+        return res.status(200).json({ error: "Internal processing error" });
     }
 };
 
-// 🏆 Leaderboard Fetch Logic
+// 🏆 Leaderboard Fetch (Minor Fix for field names)
 export const getLeaderboard = async (req, res) => {
     try {
         const topSharks = await negotiationModel.find()
-            .sort({ efficiencyScore: -1, createdAt: -1 }) // Best score first, then newest
+            .sort({ efficiencyScore: -1, createdAt: -1 })
             .limit(10)
-            .select('username item efficiencyScore finalPrice createdAt');
+            .select('username item efficiencyScore finalPrice createdAt'); // 'item' match with schema
 
         res.status(200).json({ success: true, data: topSharks });
     } catch (error) {
