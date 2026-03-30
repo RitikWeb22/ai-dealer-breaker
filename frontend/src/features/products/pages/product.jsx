@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom"; // 1. Added Navigate
+import { useNavigate } from "react-router-dom";
 import { fetchAllProducts } from "../services/product.api";
 import { useNegotiation } from "../../negotiation/hooks/useVapi";
 import { useAuth } from "../../auth/hooks/useAuth";
@@ -13,12 +13,14 @@ import {
 } from "react-icons/hi";
 
 const ProductPage = () => {
-  const navigate = useNavigate(); // Initialize navigation
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [timer, setTimer] = useState(0);
   const timerRef = useRef(null);
+  // Ref to prevent double-navigation
+  const hasNavigated = useRef(false);
 
   const { user, loading: authLoading } = useAuth();
   const {
@@ -33,34 +35,79 @@ const ProductPage = () => {
     fetchAllProducts().then((data) => setProducts(data.products));
   }, []);
 
-  // ProductPage.jsx (Sirf Redirect Logic wala part)
+  // ✅ FIXED: VAPI event listeners — call-end + confirmDeal tool detection
   useEffect(() => {
     if (!vapi) return;
 
-    const handleCallEnd = () => {
-      console.log("Call ended - cleaning up...");
+    // Reset nav guard whenever a new call starts
+    hasNavigated.current = false;
 
-      // UI Cleanups
-      setSelectedItems([]);
+    const navigateAway = (delay = 1500) => {
+      // Guard: navigate only once per call session
+      if (hasNavigated.current) return;
+      hasNavigated.current = true;
+
       setIsCartOpen(false);
-
-      // Redirect with a small delay for better UX
       setTimeout(() => {
+        setSelectedItems([]);
         navigate("/leaderboard");
-      }, 1200);
+      }, delay);
     };
 
-    // FIXED: Mismatch between "call-ended" and SDK's "call-end"
+    // ✅ FIX 1: Detect confirmDeal tool call from Alex
+    // When Alex calls confirmDeal → stop the call → then navigate
+    const handleMessage = (msg) => {
+      // VAPI sends tool calls as type "tool-calls"
+      if (msg?.type === "tool-calls") {
+        const dealTool = msg.toolCallList?.find(
+          (t) => t.function?.name === "confirmDeal",
+        );
+        if (dealTool) {
+          console.log(
+            "✅ confirmDeal triggered:",
+            dealTool.function?.arguments,
+          );
+          // Give Alex ~2s to speak closing line, then stop call
+          setTimeout(() => {
+            vapi?.stop();
+          }, 2000);
+        }
+      }
+
+      // ✅ FIX 2: Catch endCallPhrases via transcript as fallback
+      // If VAPI assistant config has endCallPhrases set, call-end fires automatically.
+      // This handles the edge case where tool-calls event might be missed.
+      if (msg?.type === "transcript" && msg?.role === "assistant") {
+        const text = msg?.transcript?.toLowerCase() || "";
+        if (text.includes("have a great day") || text.includes("shukriya")) {
+          console.log("🎯 Closing phrase detected in transcript");
+          setTimeout(() => {
+            vapi?.stop();
+          }, 1500);
+        }
+      }
+    };
+
+    // ✅ FIX 3: call-end is the single source of truth for navigation
+    const handleCallEnd = () => {
+      console.log("🏁 Call ended — navigating to leaderboard");
+      navigateAway(500); // Small delay so UI updates cleanly
+    };
+
+    vapi.on("message", handleMessage);
     vapi.on("call-end", handleCallEnd);
 
     return () => {
+      vapi.off("message", handleMessage);
       vapi.off("call-end", handleCallEnd);
     };
   }, [vapi, navigate]);
+
   // Timer logic
   useEffect(() => {
     if (isConnected) {
       setTimer(0);
+      hasNavigated.current = false; // Reset on new connection
       timerRef.current = setInterval(() => setTimer((prev) => prev + 1), 1000);
     } else {
       clearInterval(timerRef.current);

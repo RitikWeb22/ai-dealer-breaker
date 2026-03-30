@@ -1,20 +1,27 @@
 import axios from 'axios';
 
 export const getNegotiationSession = async (basketItems, user) => {
-    // 1. Items clean up logic
+    // 1. Items cleanup with Prices (Zaroori hai backend calculation ke liye)
     const cleanItems = basketItems.map(item => {
-        if (typeof item === 'object' && item !== null) {
-            return item.name;
-        }
-        return item;
-    }).filter(Boolean);
+        return {
+            name: item.name || item,
+            msrp: Number(item.msrp) || 0,
+            floor: Number(item.floorPrice) || 0
+        };
+    }).filter(i => i.name);
 
-    // 2. Fix: user.username ka use karein (kyuki AuthContext mein yahi hai)
+    // 2. Calculations for Frontend Override (Consistency ke liye)
+    const totalMsrpVal = basketItems.reduce((acc, item) => acc + (Number(item.msrp) || 0), 0);
+    const totalFloorVal = basketItems.reduce((acc, item) => acc + (Number(item.floorPrice) || 0), 0);
+
     const payload = {
-        selectedItems: cleanItems,
+        selectedItems: cleanItems.map(i => i.name), // Backend compatibility
+        // Addition: Inhe as variables bhejo taaki Vapi prompt sahi bane
+        raw_msrp_val: totalMsrpVal,
+        raw_floor_val: totalFloorVal,
         user: {
-            id: user?._id || "user_01", // MongoDB ki ID '_id' hoti hai
-            name: user?.username || "Ritik" // 'name' ki jagah 'username' check karein
+            id: user?._id || "user_01",
+            name: user?.username || "Ritik"
         }
     };
 
