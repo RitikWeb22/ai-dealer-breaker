@@ -1,9 +1,6 @@
+import mongoose from 'mongoose';
 import negotiationModel from '../models/negotiation.model.js';
 import productModel from '../models/product.model.js';
-
-// 🚀 FIX: Is controller ko Vapi Dashboard mein as "Server URL" use karna
-import negotiationModel from '../models/negotiation.model.js';
-import mongoose from 'mongoose';
 
 export const createNegotiation = async (req, res) => {
     try {
