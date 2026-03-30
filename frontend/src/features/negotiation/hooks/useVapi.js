@@ -3,22 +3,20 @@ import Vapi from "@vapi-ai/web";
 import { getNegotiationSession } from '../services/negotiation.api';
 import { useNegotiationContext } from '../negotiation.context';
 
-// Vapi instance ko hook ke bahar rakha hai taaki singleton rahe
 const vapi = new Vapi(import.meta.env.VITE_VAPI_PUBLIC_KEY);
 
 export const useNegotiation = () => {
-    // Context se state aur setter dono nikaal rahe hain
     const { isCallActive, setIsCallActive } = useNegotiationContext();
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // Events ko track karne ke liye
         vapi.on("call-start", () => {
             console.log("🚀 Alex is on the line!");
             setIsCallActive(true);
             setLoading(false);
         });
 
+        // FIXED: Event name is "call-end"
         vapi.on("call-end", () => {
             console.log("🏁 Call ended.");
             setIsCallActive(false);
@@ -31,7 +29,6 @@ export const useNegotiation = () => {
             setLoading(false);
         });
 
-        // Cleanup
         return () => {
             vapi.removeAllListeners();
         };
@@ -43,14 +40,21 @@ export const useNegotiation = () => {
             const config = await getNegotiationSession(basketItems, user);
             const assistantId = import.meta.env.VITE_VAPI_ASSISTANT_ID;
 
+            // Calculation ke liye raw numbers nikaalna
+            const totalMsrpVal = basketItems.reduce((acc, item) => acc + item.msrp, 0);
+            const totalFloorVal = basketItems.reduce((acc, item) => acc + item.floorPrice, 0);
+
             const assistantOverrides = {
                 variableValues: {
-                    username: String(config.variableValues.username || "Customer"),
-                    items_in_basket: String(config.variableValues.items_in_basket),
-                    // Backend se "13 hazaar" format mein aa raha hai toh String rakhein
-                    total_msrp: String(config.variableValues.total_msrp),
-                    floor_limit: String(config.variableValues.floor_limit),
-                    userId: String(config.variableValues.userId)
+                    username: String(user?.username || "Customer"),
+                    items_in_basket: String(basketItems.map(i => i.name).join(", ")),
+                    total_msrp: String(config.variableValues.total_msrp), // For Alex to speak
+                    floor_limit: String(config.variableValues.floor_limit), // For Alex's logic
+
+                    // CRITICAL: Backend calculations ke liye exact numbers
+                    raw_msrp: Number(totalMsrpVal),
+                    raw_floor: Number(totalFloorVal),
+                    userId: String(user?._id)
                 }
             };
 
@@ -65,11 +69,5 @@ export const useNegotiation = () => {
 
     const endCall = () => vapi.stop();
 
-    return {
-        startVictorCall,
-        endCall,
-        loading,
-        isConnected: isCallActive, // ProductPage ke liye important rename
-        vapi // Instance return kar rahe hain listeners ke liye
-    };
+    return { startVictorCall, endCall, loading, isConnected: isCallActive, vapi };
 };

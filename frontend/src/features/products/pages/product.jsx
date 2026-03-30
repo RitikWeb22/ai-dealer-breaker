@@ -33,33 +33,30 @@ const ProductPage = () => {
     fetchAllProducts().then((data) => setProducts(data.products));
   }, []);
 
-  // --- Redirect & Cleanup Logic ---
+  // ProductPage.jsx (Sirf Redirect Logic wala part)
   useEffect(() => {
     if (!vapi) return;
 
     const handleCallEnd = () => {
-      console.log("Call ended - cleaning up and redirecting...");
+      console.log("Call ended - cleaning up...");
 
-      // 1. Unselect products immediately
+      // UI Cleanups
       setSelectedItems([]);
-
-      // 2. Close cart if open
       setIsCartOpen(false);
 
-      // 3. Small delay to let the user process the end of the conversation
+      // Redirect with a small delay for better UX
       setTimeout(() => {
         navigate("/leaderboard");
-      }, 1500);
+      }, 1200);
     };
 
-    // Listen for Vapi call end event
-    vapi.on("call-ended", handleCallEnd);
+    // FIXED: Mismatch between "call-ended" and SDK's "call-end"
+    vapi.on("call-end", handleCallEnd);
 
     return () => {
-      vapi.off("call-ended", handleCallEnd);
+      vapi.off("call-end", handleCallEnd);
     };
   }, [vapi, navigate]);
-
   // Timer logic
   useEffect(() => {
     if (isConnected) {
