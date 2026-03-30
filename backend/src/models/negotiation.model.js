@@ -1,11 +1,7 @@
 import mongoose from 'mongoose';
 
 const NegotiationSchema = new mongoose.Schema({
-    userId: {
-        type: mongoose.Schema.Types.Mixed,
-        required: true,
-        // ❌ Yahan se "index: true" hata diya hai
-    },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: false },
     callId: { type: String, unique: true },
     username: {
         type: String,
