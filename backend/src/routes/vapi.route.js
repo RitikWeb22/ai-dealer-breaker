@@ -1,12 +1,15 @@
 import { Router } from 'express';
-import { getAssistantConfig, handleVapiWebhook } from '../controller/vapi.controller.js';
+import { getAssistantConfig, handleVapiWebhook, getLeaderboard } from '../controller/vapi.controller.js';
 
 const vapiRouter = Router();
 
-// Route to get dynamic variables for the frontend vapi.start()
+// 1. Session Config (Frontend start call ke liye)
 vapiRouter.post('/session-config', getAssistantConfig);
 
-// Webhook URL (Must be added to Vapi Dashboard)
+// 2. Webhook (Vapi Dashboard mein ye URL dalega: /api/vapi/webhook)
 vapiRouter.post('/webhook', handleVapiWebhook);
+
+// 3. Leaderboard (Frontend fetch ke liye: /api/vapi/leaderboard)
+vapiRouter.get('/leaderboard', getLeaderboard); // 👈 Ye missing tha!
 
 export default vapiRouter;

@@ -96,3 +96,17 @@ export const handleVapiWebhook = async (req, res) => {
         res.status(500).json({ error: "Webhook Failed" });
     }
 };
+
+// 🏆 Leaderboard Fetch Logic
+export const getLeaderboard = async (req, res) => {
+    try {
+        const topSharks = await negotiationModel.find()
+            .sort({ efficiencyScore: -1, createdAt: -1 }) // Best score first, then newest
+            .limit(10)
+            .select('username item efficiencyScore finalPrice createdAt');
+
+        res.status(200).json({ success: true, data: topSharks });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
