@@ -1,11 +1,11 @@
 import negotiationModel from "../models/negotiation.model.js";
 import productModel from "../models/product.model.js";
 import numberToHindiWords from "../utils/Hindinumbers.js";
+import mongoose from "mongoose";
 
-// ✅ Smart floor calculator - Robust fallback logic
+// ✅ Smart floor calculator
 const calculateFloorPrice = (totalMsrp, products) => {
     const dbFloorTotal = products.reduce((sum, p) => sum + (Number(p.floor_price) || 0), 0);
-    // Agar DB mein floor price 0 hai, toh 75% MSRP default set karo
     if (dbFloorTotal > 0) return dbFloorTotal;
     return Math.round(totalMsrp * 0.75);
 };
@@ -13,10 +13,7 @@ const calculateFloorPrice = (totalMsrp, products) => {
 export const getAssistantConfig = async (req, res) => {
     try {
         const { selectedItems, user } = req.body;
-
-        const productsFromDB = await productModel.find({
-            name: { $in: selectedItems }
-        });
+        const productsFromDB = await productModel.find({ name: { $in: selectedItems } });
 
         if (!productsFromDB.length) {
             return res.status(404).json({ error: "Koi bhi item nahi mila database mein" });
@@ -24,9 +21,6 @@ export const getAssistantConfig = async (req, res) => {
 
         const totalMsrp = productsFromDB.reduce((sum, p) => sum + (p.msrp || 0), 0);
         const totalFloor = calculateFloorPrice(totalMsrp, productsFromDB);
-
-        console.log("📦 Items Selected:", selectedItems);
-        console.log("💰 Config Created -> MSRP:", totalMsrp, "| Floor:", totalFloor);
 
         return res.status(200).json({
             variableValues: {
@@ -39,7 +33,6 @@ export const getAssistantConfig = async (req, res) => {
                 userId: user?.id || "anonymous"
             }
         });
-
     } catch (error) {
         console.error("❌ getAssistantConfig error:", error);
         res.status(500).json({ error: error.message });
@@ -55,38 +48,43 @@ export const handleVapiWebhook = async (req, res) => {
 
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === 'confirmDeal') {
-                    // ✅ SAFE ARGUMENTS PARSING
                     let args = toolCall.function.arguments;
                     if (typeof args === 'string') args = JSON.parse(args);
 
                     const { finalPrice } = args;
-
-                    // Extract hidden variables from call context
                     const vars = message.call?.variables || {};
+
                     const msrp = Number(vars.raw_msrp) || 0;
                     const floor = Number(vars.raw_floor) || (msrp * 0.75);
                     const finalPriceNum = Number(finalPrice);
 
-                    // ✅ BETTER EFFICIENCY LOGIC
+                    // ✅ Efficiency Calculation
                     let efficiency = 0;
                     if (msrp > floor) {
                         efficiency = ((msrp - finalPriceNum) / (msrp - floor)) * 100;
                     }
-                    // Clamp between 0-100
                     const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
 
-                    // ✅ SAVE TO MONGO (Ensuring 'item' matches your schema)
-                    const savedData = await negotiationModel.create({
-                        userId: vars.userId || "anonymous",
-                        username: vars.username || "Guest",
-                        item: vars.items_in_basket || "Product Pack",
-                        totalMsrp: msrp,
-                        finalPrice: finalPriceNum,
-                        floorPrice: floor,
-                        efficiencyScore: Number(finalEfficiency.toFixed(2)) // Convert back to Number for sorting
-                    });
+                    // 🚨 CRITICAL FIX: userId ObjectId Validation
+                    // Agar vars.userId valid ObjectId nahi hai, toh ek placeholder ID use karo
+                    const isValidId = mongoose.Types.ObjectId.isValid(vars.userId);
+                    const dbUserId = isValidId ? vars.userId : new mongoose.Types.ObjectId("000000000000000000000000");
 
-                    console.log(`🚀 [DB SAVE] ID: ${savedData._id} | Price: ₹${finalPriceNum} | User: ${vars.username}`);
+                    // ✅ SAVE TO MONGO (Field names synced with your schema)
+                    try {
+                        const savedData = await negotiationModel.create({
+                            userId: dbUserId,
+                            username: vars.username || "Guest",
+                            items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Unknown Product"],
+                            totalMsrp: msrp,
+                            finalPrice: finalPriceNum,
+                            floorPrice: floor,
+                            efficiencyScore: Number(finalEfficiency.toFixed(2))
+                        });
+                        console.log(`✅ [DB SUCCESS] Saved ID: ${savedData._id}`);
+                    } catch (dbErr) {
+                        console.error("❌ [DB SAVE FAILED]:", dbErr.message);
+                    }
 
                     return {
                         toolCallId: toolCall.id,
@@ -96,15 +94,13 @@ export const handleVapiWebhook = async (req, res) => {
                 return { toolCallId: toolCall.id, result: "Tool ignored." };
             }));
 
-            // ✅ CRITICAL: Return 201 with exactly this structure
             return res.status(201).json({ results });
         }
-
         return res.status(200).json({ status: "received" });
 
     } catch (error) {
-        console.error("❌ Webhook processing failed:", error);
-        return res.status(200).json({ error: "Fail-safe response triggered" });
+        console.error("❌ Webhook Error:", error);
+        return res.status(200).json({ error: "Fail-safe response" });
     }
 };
 
@@ -113,7 +109,6 @@ export const getLeaderboard = async (req, res) => {
         const topSharks = await negotiationModel.find()
             .sort({ efficiencyScore: -1, createdAt: -1 })
             .limit(10);
-
         res.status(200).json({ success: true, data: topSharks });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
