@@ -1,44 +1,65 @@
 import axios from 'axios';
 
 export const getNegotiationSession = async (basketItems, user) => {
-    // 1. Items cleanup - Supporting all naming conventions
+    // 1. Items cleanup & Validation
+    if (!basketItems || basketItems.length === 0) {
+        throw new Error("Basket is empty. Select products first.");
+    }
+
     const cleanItems = basketItems.map(item => {
         const msrp = Number(item.msrp || item.totalMsrp || item.price) || 0;
-        // Fallback to 75% MSRP if floor price is missing
-        const floor = Number(item.floor_price || item.floorPrice) || Math.round(msrp * 0.75);
+        // Fallback: 75% of MSRP as floor price (Munirka style bargaining limit!)
+        const floor = Number(item.floor_price || item.floorPrice || item.floor) || Math.round(msrp * 0.75);
 
         return {
-            name: item.name || (typeof item === 'string' ? item : "Unknown Product"),
+            name: item.name || (typeof item === 'string' ? item : "Premium Product"),
             msrp: msrp,
             floor: floor
         };
-    }).filter(i => i.name);
+    }).filter(i => i.name && i.msrp > 0);
 
     // 2. Aggregate Totals
     const totalMsrpVal = cleanItems.reduce((acc, item) => acc + item.msrp, 0);
     const totalFloorVal = cleanItems.reduce((acc, item) => acc + item.floor, 0);
 
-    // 3. FLAT PAYLOAD (Backend sync ke liye zaroori hai)
+    // 3. Stringified list for Vapi Voice (Alex reads this better than an array)
+    const itemsString = cleanItems
+        .map(i => `${i.name} (₹${i.msrp.toLocaleString()})`)
+        .join(", ");
+
+    // 4. THE PAYLOAD (MongoDB Identity Focus)
     const payload = {
         selectedItems: cleanItems.map(i => i.name),
-        // Variables naming synced with vapi.controller.js
+        items_in_basket: itemsString,
         raw_msrp: totalMsrpVal,
         raw_floor: totalFloorVal,
-        // Flat user data - Taaki Vapi vars.username direct pakad sake
+
+        // Identity Tracking: Screenshots ke basis par prioritize karke
         username: user?.username || user?.name || "Guest Shark",
-        userId: user?._id || user?.id || "65f1a2b3c4d5e6f7a8b9c0d1"
+        userId: user?._id || user?.id || "69c74f6c10fd160b3aeb0fc2", // Fallback to 'test' user ID from your Compass
+
+        // Vapi Dashboard visual strings
+        total_msrp: `₹${totalMsrpVal.toLocaleString()}`,
+        floor_limit: `₹${totalFloorVal.toLocaleString()}`
     };
 
-    console.log("🚀 SENDING FLAT PAYLOAD:", payload);
+    console.log("🚀 SENDING FLAT PAYLOAD TO BACKEND:", payload);
 
     try {
         const response = await axios.post(
             `${import.meta.env.VITE_BACKEND_URL}/api/vapi/session-config`,
-            payload
+            payload,
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Optional: If you need to send the token for authentication
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            }
         );
         return response.data;
     } catch (error) {
         console.error("❌ Negotiation API Error:", error.response?.data || error.message);
         throw error;
     }
-};  
+};

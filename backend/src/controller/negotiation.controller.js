@@ -1,93 +1,87 @@
 import negotiationModel from '../models/negotiation.model.js';
-import mongoose from 'mongoose';
 import productModel from '../models/product.model.js';
-
+import numberToHindiWords from "../utils/Hindinumbers.js";
+import mongoose from 'mongoose';
 
 export const createNegotiation = async (req, res) => {
     try {
         const { message } = req.body;
 
-        // Log check karne ke liye ki webhook hit hua ya nahi
+        // Log receive type for debugging
         console.log("📩 Webhook Received. Type:", message?.type);
 
         if (message?.type === 'tool-calls') {
             const toolCalls = message.toolCalls || [];
-            console.log("🛠️ Tool Calls detected:", toolCalls.length);
 
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === "confirmDeal") {
-
                     // 1. Arguments Parsing
                     let args = toolCall.function.arguments;
-                    if (typeof args === 'string') args = JSON.parse(args);
-                    const { finalPrice, items: itemsFromAlex } = args;
+                    if (typeof args === 'string') {
+                        try { args = JSON.parse(args); } catch { args = {}; }
+                    }
 
-                    // 2. Variables Extraction
+                    const finalPriceNum = Number(args.finalPrice || args.price) || 0;
+
+                    // 2. Variables Extraction (Synced with startVapiSession)
                     const vars = message.call?.variables || {};
-                    const totalMsrp = Number(vars.raw_msrp || vars.raw_msrp_val) || 0;
-                    const floorLimit = Number(vars.raw_floor || vars.raw_floor_val) || 0;
-                    const finalPriceNum = Number(finalPrice);
+                    const totalMsrp = Number(vars.raw_msrp) || 0;
+                    const floorLimit = Number(vars.raw_floor) || (totalMsrp * 0.75);
 
-                    console.log(`📊 Processing Deal: MSRP ${totalMsrp}, Final ${finalPriceNum}`);
-
-                    // 3. Efficiency Calculation
+                    // 3. Efficiency Calculation (Shark Score)
                     const possibleSavings = totalMsrp - floorLimit;
                     const actualSavings = totalMsrp - finalPriceNum;
                     let efficiency = possibleSavings <= 0 ? 100 : (actualSavings / possibleSavings) * 100;
                     const finalEfficiency = Number(Math.min(Math.max(efficiency, 0), 100).toFixed(2));
 
-                    // 4. CRITICAL FIX: UserID Validation
-                    // Agar userId frontend se sahi nahi aa rahi, toh ye line usey fix karegi
-                    let validUserId;
-                    if (vars.userId && mongoose.Types.ObjectId.isValid(vars.userId)) {
-                        validUserId = vars.userId;
-                    } else if (vars.user?.id && mongoose.Types.ObjectId.isValid(vars.user.id)) {
-                        validUserId = vars.user.id;
-                    } else {
-                        // Agar koi ID nahi mili, toh temporary ID banao (Riksy but saves data)
-                        validUserId = new mongoose.Types.ObjectId();
-                        console.warn("⚠️ Valid UserId missing, using temporary ID");
-                    }
+                    // 4. UserID Strategy (Mixed Type Support)
+                    // Agar userId valid ObjectId nahi hai toh "anonymous" string use karega
+                    const dbUserId = mongoose.Types.ObjectId.isValid(vars.userId)
+                        ? vars.userId
+                        : "anonymous";
 
-                    // 5. Database Save
-                    try {
-                        const negotiation = await negotiationModel.create({
-                            userId: validUserId,
-                            username: vars.username || vars.user?.name || "Guest Shark",
-                            items: Array.isArray(itemsFromAlex) ? itemsFromAlex : [vars.items_in_basket || "Product Pack"],
+                    console.log(`📊 Processing Deal for ${vars.username}: Final ₹${finalPriceNum} (Eff: ${finalEfficiency}%)`);
+
+                    // 5. Background Database Save (Prevent Vapi Timeout)
+                    // .then/catch use kiya hai taaki res.status turant ja sake
+                    negotiationModel.findOneAndUpdate(
+                        { callId: message.call?.id }, // Use callId to prevent duplicate saves
+                        {
+                            userId: dbUserId,
+                            username: vars.username || "Guest Shark",
+                            items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Items"],
                             totalMsrp,
                             finalPrice: finalPriceNum,
                             floorPrice: floorLimit,
-                            efficiencyScore: finalEfficiency
-                        });
+                            efficiencyScore: finalEfficiency,
+                            callId: message.call?.id // Optional: Schema mein callId add kar lena
+                        },
+                        { upsert: true, new: true, setDefaultsOnInsert: true }
+                    ).then(doc => console.log("✅ [DB SAVE SUCCESS]"))
+                        .catch(err => console.error("❌ [DB SAVE ERROR]:", err.message));
 
-                        console.log("✅ [DATABASE SAVE SUCCESS]:", negotiation._id);
-
-                        return {
-                            toolCallId: toolCall.id,
-                            result: "Shark! Deal recorded. Check leaderboard."
-                        };
-                    } catch (dbErr) {
-                        console.error("❌ [MONGODB SAVE ERROR]:", dbErr.message);
-                        throw dbErr;
-                    }
+                    // 6. Tool Success Response
+                    return {
+                        toolCallId: toolCall.id,
+                        result: `Success! Deal recorded at ₹${finalPriceNum}. Efficiency: ${finalEfficiency}%.`
+                    };
                 }
-                return { toolCallId: toolCall.id, result: "Not a deal tool." };
+                return { toolCallId: toolCall.id, result: "Processed" };
             }));
 
+            // CRITICAL: 201 for Vapi Tool Responses
             return res.status(201).json({ results });
         }
 
+        // Prevent Vapi retries for other message types
         return res.status(200).json({ status: 'received' });
 
     } catch (err) {
         console.error("❌ [WEBHOOK CRITICAL FAIL]:", err);
-        return res.status(201).json({
-            results: [{ toolCallId: req.body.message?.toolCalls?.[0]?.id, result: "Error" }]
-        });
+        return res.status(200).json({ error: "Fail-safe triggered" });
     }
 };
-// 🛠️ Start Session: Frontend logic to fetch prices and set Vapi variables
+
 export const startVapiSession = async (req, res) => {
     try {
         const { selectedItems, user } = req.body;
@@ -96,27 +90,29 @@ export const startVapiSession = async (req, res) => {
             return res.status(400).json({ success: false, message: "Basket is empty" });
         }
 
-        // Database se latest prices uthao
+        // Fetch products from DB
         const products = await productModel.find({ name: { $in: selectedItems } });
 
         const totalMsrp = products.reduce((sum, p) => sum + (Number(p.msrp) || 0), 0);
-        // Floor price fallback agar DB mein 0 ho
         const totalFloor = products.reduce((sum, p) => {
-            const price = Number(p.floor_price);
-            return sum + (price > 0 ? price : (p.msrp * 0.75));
+            const price = Number(p.floor_price || p.floorPrice);
+            return sum + (price > 0 ? price : Math.round(p.msrp * 0.75));
         }, 0);
 
-        console.log(`📦 Session Start: ${user?.name} | MSRP: ${totalMsrp} | Floor: ${totalFloor}`);
+        console.log(`📦 Session Start: ${user?.username || 'Guest'} | MSRP: ${totalMsrp}`);
 
         return res.status(200).json({
             variableValues: {
-                username: user?.name || "Customer",
+                // AI Verbal Variables (Alex will use these for speaking)
+                username: user?.username || user?.name || "Shark",
                 items_in_basket: selectedItems.join(", "),
-                total_msrp: totalMsrp,
-                floor_limit: totalFloor,
+                total_msrp: numberToHindiWords(totalMsrp),
+                floor_limit: numberToHindiWords(totalFloor),
+
+                // Raw Numeric Variables (For Backend/Logic)
                 raw_msrp: totalMsrp,
                 raw_floor: totalFloor,
-                userId: user?.id || "anonymous"
+                userId: user?._id || user?.id || "anonymous"
             }
         });
 
