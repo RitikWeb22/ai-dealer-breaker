@@ -2,10 +2,9 @@ import mongoose from 'mongoose';
 
 const NegotiationSchema = new mongoose.Schema({
     userId: {
-        // Mixed type taaki ObjectId aur "anonymous" string dono accept ho sakein
         type: mongoose.Schema.Types.Mixed,
         required: true,
-        index: true // Searching fast karne ke liye index zaroori hai
+        // ❌ Yahan se "index: true" hata diya hai
     },
     callId: { type: String, unique: true },
     username: {
@@ -14,7 +13,7 @@ const NegotiationSchema = new mongoose.Schema({
         trim: true
     },
     items: {
-        type: [String], // Array format for better data structure
+        type: [String],
         default: ["Negotiated Items"]
     },
     totalMsrp: {
@@ -36,7 +35,7 @@ const NegotiationSchema = new mongoose.Schema({
         type: Number,
         required: true,
         min: 0,
-        max: 100 // Bargaining efficiency percentage mein hoti hai
+        max: 100
     },
     status: {
         type: String,
@@ -48,10 +47,10 @@ const NegotiationSchema = new mongoose.Schema({
         default: Date.now
     }
 }, {
-    timestamps: true // updatedAt automatically manage hoga
+    timestamps: true
 });
 
-// ✅ Optimized Indexes for Leaderboard performance
+// ✅ Ye kaafi hai! Isme userId aur efficiencyScore dono cover ho rahe hain.
 NegotiationSchema.index({ efficiencyScore: -1, createdAt: -1 });
 NegotiationSchema.index({ userId: 1 });
 
