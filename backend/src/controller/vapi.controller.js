@@ -22,15 +22,18 @@ export const getAssistantConfig = async (req, res) => {
         const totalMsrp = productsFromDB.reduce((sum, p) => sum + (p.msrp || 0), 0);
         const totalFloor = calculateFloorPrice(totalMsrp, productsFromDB);
 
+        // ✅ LOGGING FOR DEBUGGING
+        console.log(`📦 Config for ${user?.name || "Guest"}: MSRP ${totalMsrp}, Floor ${totalFloor}`);
+
         return res.status(200).json({
             variableValues: {
                 username: user?.name || "Guest",
+                userId: user?.id || user?._id || "anonymous",
                 items_in_basket: selectedItems.join(", "),
                 total_msrp: numberToHindiWords(totalMsrp),
                 floor_limit: numberToHindiWords(totalFloor),
                 raw_msrp: totalMsrp,
-                raw_floor: totalFloor,
-                userId: user?.id || "anonymous"
+                raw_floor: totalFloor
             }
         });
     } catch (error) {
@@ -54,41 +57,49 @@ export const handleVapiWebhook = async (req, res) => {
                     const { finalPrice } = args;
                     const vars = message.call?.variables || {};
 
-                    const msrp = Number(vars.raw_msrp) || 0;
-                    const floor = Number(vars.raw_floor) || (msrp * 0.75);
+                    // ✅ SOURCE FALLBACK LOGIC (For User & Prices)
+                    const msrp = Number(vars.raw_msrp) || Number(vars.raw_msrp_val) || 0;
+                    const floor = Number(vars.raw_floor) || Number(vars.raw_floor_val) || 0;
                     const finalPriceNum = Number(finalPrice);
+
+                    const dbUsername = vars.username || vars.user?.name || "Guest";
+                    const rawUserId = vars.userId || vars.user?.id || "anonymous";
 
                     // ✅ Efficiency Calculation
                     let efficiency = 0;
-                    if (msrp > floor) {
-                        efficiency = ((msrp - finalPriceNum) / (msrp - floor)) * 100;
+                    const possibleSavings = msrp - floor;
+                    const actualSavings = msrp - finalPriceNum;
+
+                    if (possibleSavings > 0) {
+                        efficiency = (actualSavings / possibleSavings) * 100;
+                    } else if (msrp > 0) {
+                        // Fallback if floor is somehow 0
+                        efficiency = ((msrp - finalPriceNum) / (msrp * 0.25)) * 100;
                     }
                     const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
 
-                    // 🚨 CRITICAL FIX: userId ObjectId Validation
-                    // Agar vars.userId valid ObjectId nahi hai, toh ek placeholder ID use karo
-                    const isValidId = mongoose.Types.ObjectId.isValid(vars.userId);
-                    const dbUserId = isValidId ? vars.userId : new mongoose.Types.ObjectId("000000000000000000000000");
+                    // ✅ ObjectId Validation
+                    const isValidId = mongoose.Types.ObjectId.isValid(rawUserId);
+                    const dbUserId = isValidId ? rawUserId : new mongoose.Types.ObjectId("65f1a2b3c4d5e6f7a8b9c0d1");
 
-                    // ✅ SAVE TO MONGO (Field names synced with your schema)
                     try {
                         const savedData = await negotiationModel.create({
                             userId: dbUserId,
-                            username: vars.username || "Guest",
-                            items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Unknown Product"],
+                            username: dbUsername,
+                            items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Deal Product"],
                             totalMsrp: msrp,
                             finalPrice: finalPriceNum,
                             floorPrice: floor,
                             efficiencyScore: Number(finalEfficiency.toFixed(2))
                         });
-                        console.log(`✅ [DB SUCCESS] Saved ID: ${savedData._id}`);
+                        console.log(`✅ [DB SUCCESS] Saved for ${dbUsername} | Efficiency: ${finalEfficiency}%`);
                     } catch (dbErr) {
                         console.error("❌ [DB SAVE FAILED]:", dbErr.message);
                     }
 
                     return {
                         toolCallId: toolCall.id,
-                        result: "Deal recorded successfully. Thank you!"
+                        result: "Deal recorded successfully."
                     };
                 }
                 return { toolCallId: toolCall.id, result: "Tool ignored." };

@@ -76,11 +76,11 @@ const ProductPage = () => {
         );
 
         if (dealTool) {
-          console.log("✅ confirmDeal Detected. Ending call in 3s...");
+          console.log("✅ confirmDeal Detected. Ending call in 10s...");
           // Let Alex finish his "Mubarak ho" line
           setTimeout(() => {
             vapi.stop();
-          }, 3500);
+          }, 10000);
         }
       }
 
