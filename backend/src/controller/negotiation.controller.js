@@ -6,17 +6,16 @@ import mongoose from 'mongoose';
 export const createNegotiation = async (req, res) => {
     try {
         const { message } = req.body;
-
-        // Debugging ke liye full payload log (sirf development mein)
         console.log("📩 Webhook Received. Type:", message?.type);
 
         if (message?.type === 'tool-calls') {
             const toolCalls = message.toolCalls || [];
 
+            // 1. Map through tool calls and WAIT for DB operations
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === "confirmDeal") {
 
-                    // 1. Arguments Parsing
+                    // Arguments Parsing
                     let args = toolCall.function.arguments;
                     if (typeof args === 'string') {
                         try { args = JSON.parse(args); } catch { args = {}; }
@@ -24,11 +23,12 @@ export const createNegotiation = async (req, res) => {
 
                     const finalPriceNum = Number(args.finalPrice || args.price) || 0;
 
-                    // 2. Variables Extraction (More Robust Check)
-                    // Vapi variables different paths mein ho sakte hain
-                    const vars = message.call?.variables || message.variables || {};
+                    // 2. Robust Variables Extraction
+                    // Tool calls mein variables aksar 'message.variables' mein hote hain
+                    const vars = message.variables || message.call?.variables || {};
+
                     const totalMsrp = Number(vars.raw_msrp) || 0;
-                    const floorLimit = Number(vars.raw_floor) || (totalMsrp * 0.75);
+                    const floorLimit = Number(vars.raw_floor) || Math.round(totalMsrp * 0.75);
 
                     // 3. Efficiency Calculation
                     const possibleSavings = totalMsrp - floorLimit;
@@ -36,16 +36,11 @@ export const createNegotiation = async (req, res) => {
                     let efficiency = possibleSavings <= 0 ? 100 : (actualSavings / possibleSavings) * 100;
                     const finalEfficiency = Number(Math.min(Math.max(efficiency, 0), 100).toFixed(2));
 
-                    // 4. UserID & CallID Safety
-                    const dbUserId = mongoose.Types.ObjectId.isValid(vars.userId) ? vars.userId : null;
-                    const currentCallId = message.call?.id || `manual-${Date.now()}`;
+                    // 4. Identity Handling
+                    const currentCallId = message.call?.id || toolCall.id || `call-${Date.now()}`;
 
-                    console.log(`📊 Processing: ${vars.username} | ₹${finalPriceNum} | Eff: ${finalEfficiency}%`);
-
-                    // 5. Database Update Logic
-                    // Update key: Username + FinalPrice (agar callId schema mein nahi hai toh safely handle karega)
                     const updateData = {
-                        userId: dbUserId,
+                        userId: vars.userId || "anonymous",
                         username: vars.username || "Guest Shark",
                         items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Items"],
                         totalMsrp,
@@ -56,31 +51,26 @@ export const createNegotiation = async (req, res) => {
                         callId: currentCallId
                     };
 
-                    // Execute Save with Logging
-                    negotiationModel.findOneAndUpdate(
-                        { callId: currentCallId },
-                        updateData,
-                        { upsert: true, new: true, setDefaultsOnInsert: true }
-                    )
-                        .then(doc => console.log("✅ [DB SAVE SUCCESS]:", doc._id))
-                        .catch(err => {
-                            console.error("❌ [DB SAVE ERROR]:", err.message);
-                            // Fallback: Agar callId ki wajah se fail ho raha ho (schema issue)
-                            console.log("Attempting fallback save without callId...");
-                            new negotiationModel(updateData).save()
-                                .then(() => console.log("✅ Fallback Save Success"))
-                                .catch(e => console.error("🛑 Critical DB Fail:", e.message));
-                        });
+                    try {
+                        // 5. AWAIT the Database Save (Don't use .then here)
+                        const savedDoc = await negotiationModel.findOneAndUpdate(
+                            { callId: currentCallId },
+                            updateData,
+                            { upsert: true, new: true, setDefaultsOnInsert: true }
+                        );
+                        console.log("✅ [DB SAVE SUCCESS]:", savedDoc._id);
+                    } catch (dbErr) {
+                        console.error("❌ [DB SAVE ERROR]:", dbErr.message);
+                    }
 
                     return {
                         toolCallId: toolCall.id,
-                        result: `Success! Deal recorded at ₹${finalPriceNum}.`
+                        result: `Deal confirmed at ₹${finalPriceNum}. Thank you!`
                     };
                 }
-                return { toolCallId: toolCall.id, result: "Processed" };
+                return { toolCallId: toolCall.id, result: "Tool processed" };
             }));
 
-            // Response content-type must be JSON
             return res.status(201).json({ results });
         }
 
@@ -88,10 +78,9 @@ export const createNegotiation = async (req, res) => {
 
     } catch (err) {
         console.error("❌ [WEBHOOK CRITICAL FAIL]:", err);
-        return res.status(201).json({ results: [] }); // Fail-safe for Vapi
+        return res.status(201).json({ results: [] });
     }
 };
-
 export const startVapiSession = async (req, res) => {
     try {
         const { selectedItems, user } = req.body;

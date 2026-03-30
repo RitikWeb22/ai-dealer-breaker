@@ -48,52 +48,26 @@ export const handleVapiWebhook = async (req, res) => {
         if (message?.type === 'tool-calls') {
             const toolCalls = message.toolCalls || [];
 
+            // handleVapiWebhook ke andar ka part replace karo:
+
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === 'confirmDeal') {
-                    let args = toolCall.function.arguments;
-                    if (typeof args === 'string') args = JSON.parse(args);
+                    // ... aapka existing logic (parsing, efficiency etc.) ...
 
-                    // Vapi variables extract kar rahe hain jo humne Config mein set kiye the
-                    const vars = message.call?.variables || {};
-
-                    const msrp = Number(vars.raw_msrp) || 0;
-                    const floor = Number(vars.raw_floor) || (msrp * 0.75);
-                    const finalPriceNum = Number(args.finalPrice || args.price) || 0;
-
-                    const dbUsername = vars.username || "Guest Shark";
-                    const dbUserId = vars.userId;
-
-                    // ✅ Efficiency logic: How well did the user bargain?
-                    let efficiency = 0;
-                    if (msrp > floor) {
-                        // Formula: ((MSRP - Paid) / (MSRP - Floor)) * 100
-                        efficiency = ((msrp - finalPriceNum) / (msrp - floor)) * 100;
+                    try {
+                        // 🚨 Use AWAIT here, not .then()
+                        const savedDoc = await negotiationModel.create(negotiationData);
+                        console.log(`✅ [DB SAVE] Success for Shark: ${dbUsername} | ID: ${savedDoc._id}`);
+                    } catch (dbErr) {
+                        console.error("❌ [DB SAVE ERROR]:", dbErr.message);
                     }
-                    const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
 
-                    // ✅ Database Save Logic (Synced with your Compass Schema)
-                    const negotiationData = {
-                        userId: mongoose.Types.ObjectId.isValid(dbUserId) ? dbUserId : null,
-                        username: dbUsername,
-                        items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Product"],
-                        totalMsrp: msrp,
-                        finalPrice: finalPriceNum,
-                        floorPrice: floor,
-                        efficiencyScore: Number(finalEfficiency.toFixed(2)),
-                        status: "completed"
-                    };
-
-                    negotiationModel.create(negotiationData)
-                        .then(() => console.log(`✅ [DB SAVE] Success for Shark: ${dbUsername}`))
-                        .catch(err => console.error("❌ [DB SAVE ERROR]:", err.message));
-
-                    // ✅ Tool Result for Alex (AI) to read
                     return {
                         toolCallId: toolCall.id,
-                        result: `Deal confirmed at ₹${finalPriceNum}. Efficiency: ${finalEfficiency.toFixed(1)}%. Recording successful.`
+                        result: `Deal confirmed at ₹${finalPriceNum}. Efficiency: ${finalEfficiency.toFixed(1)}%.`
                     };
                 }
-                return { toolCallId: toolCall.id, result: "Tool processed." };
+                return { toolCallId: toolCall.id, result: "Processed" };
             }));
 
             // ✅ Vapi Tool Response Requirement: Status 201
