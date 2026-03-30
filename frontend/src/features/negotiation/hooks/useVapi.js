@@ -4,14 +4,14 @@ import Vapi from "@vapi-ai/web";
 import { getNegotiationSession } from '../services/negotiation.api';
 import { useNegotiationContext } from '../negotiation.context';
 
-// Singleton instance to prevent multiple socket connections
+// Singleton instance
 const vapi = new Vapi(import.meta.env.VITE_VAPI_PUBLIC_KEY);
 
 export const useNegotiation = () => {
     const { isCallActive, setIsCallActive } = useNegotiationContext();
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
-    const hasProcessedDeal = useRef(false); // To prevent double-saving deals
+    const hasProcessedDeal = useRef(false);
 
     useEffect(() => {
         const onCallStart = () => {
@@ -23,53 +23,30 @@ export const useNegotiation = () => {
         const onCallEnd = () => {
             console.log("⏹️ Call ended");
             setIsCallActive(false);
+            // Optional: Redirect to leaderboard on normal end
+            if (hasProcessedDeal.current) navigate("/leaderboard");
         };
 
         const onError = (err) => {
             console.error("❌ Vapi SDK Error:", err);
             setIsCallActive(false);
+            setLoading(false);
         };
 
         const onMessage = (message) => {
-            // ✅ Detection for tool calls (Synced with your confirmDeal function)
+            // Frontend side tool-call detection (Fallback if Webhook is slow)
             if (message.type === 'tool-calls' && !hasProcessedDeal.current) {
                 const dealTool = message.toolCalls?.find(tc => tc.function?.name === "confirmDeal");
-
                 if (dealTool) {
                     hasProcessedDeal.current = true;
-                    console.log("🎯 Deal Finalized! Processing...");
+                    console.log("🎯 Deal Finalized! AI is speaking final words...");
 
-                    let args = dealTool.function?.arguments;
-                    if (typeof args === 'string') {
-                        try { args = JSON.parse(args); } catch { args = {}; }
-                    }
-
-                    // 🛠️ Save to MongoDB via your backend
-                    const payload = {
-                        userId: message.variables?.userId, // Captured from your session config
-                        initialPrice: message.variables?.raw_msrp,
-                        negotiatedPrice: args.final_price || args.price,
-                        items: message.variables?.selectedItems,
-                        status: 'completed'
-                    };
-
-                    // Example save call (Update endpoint as per your backend)
-                    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/negotiation/negotiations`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        },
-                        body: JSON.stringify(payload)
-                    })
-                        .then(() => console.log('✅ Negotiation saved to DB'))
-                        .catch(err => console.error('❌ Save failed:', err));
-
-                    // Finalize UX: Wait for AI to finish speaking then redirect
+                    // Note: Backend Webhook is already saving to DB. 
+                    // This frontend logic is just for UX/Redirection.
                     setTimeout(() => {
                         vapi.stop();
                         navigate("/leaderboard");
-                    }, 5000);
+                    }, 6000);
                 }
             }
         };
@@ -80,7 +57,10 @@ export const useNegotiation = () => {
         vapi.on("message", onMessage);
 
         return () => {
-            vapi.removeAllListeners();
+            vapi.off("call-start", onCallStart);
+            vapi.off("call-end", onCallEnd);
+            vapi.off("error", onError);
+            vapi.off("message", onMessage);
         };
     }, [setIsCallActive, navigate]);
 
@@ -89,15 +69,15 @@ export const useNegotiation = () => {
         setLoading(true);
 
         try {
-            // 1. Get Flat Session Config from your updated service
+            // 1. Get Config from your Backend (getAssistantConfig)
             const config = await getNegotiationSession(basketItems, user);
 
-            // 2. Map config variables directly to Vapi assistant overrides
-            // Note: config.variableValues comes from your backend controller
+            // 2. CRITICAL: Vapi expects assistantOverrides as the second argument
+            // The structure MUST match the Assistant object schema
             const assistantOverrides = {
                 variableValues: {
-                    username: String(config.variableValues?.username || "Guest"),
-                    userId: String(config.variableValues?.userId || user?._id),
+                    username: String(config.variableValues?.username || user?.username || "Shark"),
+                    userId: String(config.variableValues?.userId || user?._id || "anonymous"),
                     items_in_basket: String(config.variableValues?.items_in_basket),
                     raw_msrp: Number(config.variableValues?.raw_msrp),
                     raw_floor: Number(config.variableValues?.raw_floor),
@@ -106,7 +86,9 @@ export const useNegotiation = () => {
                 }
             };
 
-            console.log("🚀 Starting Call with UserID:", assistantOverrides.variableValues.userId);
+            console.log("🚀 Starting Call with Overrides:", assistantOverrides.variableValues);
+
+            // Ensure permissions are requested before start
             await vapi.start(import.meta.env.VITE_VAPI_ASSISTANT_ID, assistantOverrides);
 
         } catch (error) {
