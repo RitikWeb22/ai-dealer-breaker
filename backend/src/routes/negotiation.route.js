@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createNegotiation, getLeaderboard, startVapiSession } from '../controller/negotiation.controller.js'
+import { createNegotiation, startVapiSession } from '../controller/negotiation.controller.js'
 const NegotiationRouter = Router();
 
 
