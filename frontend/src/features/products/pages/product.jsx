@@ -30,12 +30,25 @@ const ProductPage = () => {
   } = useNegotiation();
 
   // Fetch products with optional chaining fix
+  // ProductPage.jsx ke andar
   useEffect(() => {
-    fetchAllProducts().then((data) => {
-      if (data?.products) {
-        setProducts(data.products);
+    const loadProducts = async () => {
+      try {
+        const data = await fetchAllProducts();
+        console.log("📦 API Response:", data); // 👈 Check karo console mein kya aa raha hai
+
+        if (data && data.products) {
+          setProducts(data.products);
+        } else if (Array.isArray(data)) {
+          // Agar backend direct array bhej raha hai bina wrapper ke
+          setProducts(data);
+        }
+      } catch (err) {
+        console.error("Failed to load products", err);
       }
-    });
+    };
+
+    loadProducts();
   }, []);
 
   useEffect(() => {
