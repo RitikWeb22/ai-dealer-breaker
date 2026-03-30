@@ -44,37 +44,66 @@ export const handleVapiWebhook = async (req, res) => {
     try {
         const { message } = req.body;
 
-        // 1. Webhook check for tool calls (Alex calling confirmDeal)
         if (message?.type === 'tool-calls') {
             const toolCalls = message.toolCalls || [];
 
-            // handleVapiWebhook ke andar ka part replace karo:
-
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === 'confirmDeal') {
-                    // ... aapka existing logic (parsing, efficiency etc.) ...
+                    let args = toolCall.function.arguments;
+                    if (typeof args === 'string') args = JSON.parse(args);
+
+                    // 🛠️ FIX: Variables nikaalne ka sahi tareeka
+                    // Vapi variables ko 'message.call.variables' ya 'message.variables' mein bhejta hai
+                    const vars = message.call?.variables || message.variables || {};
+
+                    const msrp = Number(vars.raw_msrp) || 0;
+                    const floor = Number(vars.raw_floor) || (msrp * 0.75);
+                    const finalPriceNum = Number(args.finalPrice || args.price) || 0;
+
+                    // 🛠️ FIX: UserID handle karna (Guest ke liye null ya valid ID)
+                    const dbUserId = (vars.userId && mongoose.Types.ObjectId.isValid(vars.userId))
+                        ? vars.userId
+                        : null;
+
+                    const dbUsername = vars.username || "Guest Shark";
+
+                    // Efficiency Logic
+                    let efficiency = 0;
+                    if (msrp > floor) {
+                        efficiency = ((msrp - finalPriceNum) / (msrp - floor)) * 100;
+                    }
+                    const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
+
+                    const negotiationData = {
+                        userId: dbUserId, // Ab ye "anonymous" string nahi jayega, ya toh ID hogi ya null
+                        username: dbUsername,
+                        items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Product"],
+                        totalMsrp: msrp,
+                        finalPrice: finalPriceNum,
+                        floorPrice: floor,
+                        efficiencyScore: Number(finalEfficiency.toFixed(2)),
+                        status: "completed"
+                    };
 
                     try {
-                        // 🚨 Use AWAIT here, not .then()
+                        // 🚨 DB Save
                         const savedDoc = await negotiationModel.create(negotiationData);
-                        console.log(`✅ [DB SAVE] Success for Shark: ${dbUsername} | ID: ${savedDoc._id}`);
+                        console.log(`✅ [DB SAVE] Success for: ${dbUsername} | UserID: ${dbUserId}`);
                     } catch (dbErr) {
                         console.error("❌ [DB SAVE ERROR]:", dbErr.message);
                     }
 
                     return {
                         toolCallId: toolCall.id,
-                        result: `Deal confirmed at ₹${finalPriceNum}. Efficiency: ${finalEfficiency.toFixed(1)}%.`
+                        result: `Deal confirmed at ₹${finalPriceNum}. Recording successful.`
                     };
                 }
                 return { toolCallId: toolCall.id, result: "Processed" };
             }));
 
-            // ✅ Vapi Tool Response Requirement: Status 201
             return res.status(201).json({ results });
         }
 
-        // 2. Prevent Timeout: Success response for speech-update, transcript, etc.
         return res.status(200).json({ status: "received" });
 
     } catch (error) {
