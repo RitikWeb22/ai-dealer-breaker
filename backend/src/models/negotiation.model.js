@@ -7,6 +7,7 @@ const NegotiationSchema = new mongoose.Schema({
         required: true,
         index: true // Searching fast karne ke liye index zaroori hai
     },
+    callId: { type: String, unique: true },
     username: {
         type: String,
         required: true,

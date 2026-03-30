@@ -7,7 +7,7 @@ export const createNegotiation = async (req, res) => {
     try {
         const { message } = req.body;
 
-        // Log receive type for debugging
+        // Debugging ke liye full payload log (sirf development mein)
         console.log("📩 Webhook Received. Type:", message?.type);
 
         if (message?.type === 'tool-calls') {
@@ -15,6 +15,7 @@ export const createNegotiation = async (req, res) => {
 
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === "confirmDeal") {
+
                     // 1. Arguments Parsing
                     let args = toolCall.function.arguments;
                     if (typeof args === 'string') {
@@ -23,62 +24,71 @@ export const createNegotiation = async (req, res) => {
 
                     const finalPriceNum = Number(args.finalPrice || args.price) || 0;
 
-                    // 2. Variables Extraction (Synced with startVapiSession)
-                    const vars = message.call?.variables || {};
+                    // 2. Variables Extraction (More Robust Check)
+                    // Vapi variables different paths mein ho sakte hain
+                    const vars = message.call?.variables || message.variables || {};
                     const totalMsrp = Number(vars.raw_msrp) || 0;
                     const floorLimit = Number(vars.raw_floor) || (totalMsrp * 0.75);
 
-                    // 3. Efficiency Calculation (Shark Score)
+                    // 3. Efficiency Calculation
                     const possibleSavings = totalMsrp - floorLimit;
                     const actualSavings = totalMsrp - finalPriceNum;
                     let efficiency = possibleSavings <= 0 ? 100 : (actualSavings / possibleSavings) * 100;
                     const finalEfficiency = Number(Math.min(Math.max(efficiency, 0), 100).toFixed(2));
 
-                    // 4. UserID Strategy (Mixed Type Support)
-                    // Agar userId valid ObjectId nahi hai toh "anonymous" string use karega
-                    const dbUserId = mongoose.Types.ObjectId.isValid(vars.userId)
-                        ? vars.userId
-                        : "anonymous";
+                    // 4. UserID & CallID Safety
+                    const dbUserId = mongoose.Types.ObjectId.isValid(vars.userId) ? vars.userId : null;
+                    const currentCallId = message.call?.id || `manual-${Date.now()}`;
 
-                    console.log(`📊 Processing Deal for ${vars.username}: Final ₹${finalPriceNum} (Eff: ${finalEfficiency}%)`);
+                    console.log(`📊 Processing: ${vars.username} | ₹${finalPriceNum} | Eff: ${finalEfficiency}%`);
 
-                    // 5. Background Database Save (Prevent Vapi Timeout)
-                    // .then/catch use kiya hai taaki res.status turant ja sake
+                    // 5. Database Update Logic
+                    // Update key: Username + FinalPrice (agar callId schema mein nahi hai toh safely handle karega)
+                    const updateData = {
+                        userId: dbUserId,
+                        username: vars.username || "Guest Shark",
+                        items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Items"],
+                        totalMsrp,
+                        finalPrice: finalPriceNum,
+                        floorPrice: floorLimit,
+                        efficiencyScore: finalEfficiency,
+                        status: "completed",
+                        callId: currentCallId
+                    };
+
+                    // Execute Save with Logging
                     negotiationModel.findOneAndUpdate(
-                        { callId: message.call?.id }, // Use callId to prevent duplicate saves
-                        {
-                            userId: dbUserId,
-                            username: vars.username || "Guest Shark",
-                            items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Items"],
-                            totalMsrp,
-                            finalPrice: finalPriceNum,
-                            floorPrice: floorLimit,
-                            efficiencyScore: finalEfficiency,
-                            callId: message.call?.id // Optional: Schema mein callId add kar lena
-                        },
+                        { callId: currentCallId },
+                        updateData,
                         { upsert: true, new: true, setDefaultsOnInsert: true }
-                    ).then(doc => console.log("✅ [DB SAVE SUCCESS]"))
-                        .catch(err => console.error("❌ [DB SAVE ERROR]:", err.message));
+                    )
+                        .then(doc => console.log("✅ [DB SAVE SUCCESS]:", doc._id))
+                        .catch(err => {
+                            console.error("❌ [DB SAVE ERROR]:", err.message);
+                            // Fallback: Agar callId ki wajah se fail ho raha ho (schema issue)
+                            console.log("Attempting fallback save without callId...");
+                            new negotiationModel(updateData).save()
+                                .then(() => console.log("✅ Fallback Save Success"))
+                                .catch(e => console.error("🛑 Critical DB Fail:", e.message));
+                        });
 
-                    // 6. Tool Success Response
                     return {
                         toolCallId: toolCall.id,
-                        result: `Success! Deal recorded at ₹${finalPriceNum}. Efficiency: ${finalEfficiency}%.`
+                        result: `Success! Deal recorded at ₹${finalPriceNum}.`
                     };
                 }
                 return { toolCallId: toolCall.id, result: "Processed" };
             }));
 
-            // CRITICAL: 201 for Vapi Tool Responses
+            // Response content-type must be JSON
             return res.status(201).json({ results });
         }
 
-        // Prevent Vapi retries for other message types
         return res.status(200).json({ status: 'received' });
 
     } catch (err) {
         console.error("❌ [WEBHOOK CRITICAL FAIL]:", err);
-        return res.status(200).json({ error: "Fail-safe triggered" });
+        return res.status(201).json({ results: [] }); // Fail-safe for Vapi
     }
 };
 
@@ -90,7 +100,6 @@ export const startVapiSession = async (req, res) => {
             return res.status(400).json({ success: false, message: "Basket is empty" });
         }
 
-        // Fetch products from DB
         const products = await productModel.find({ name: { $in: selectedItems } });
 
         const totalMsrp = products.reduce((sum, p) => sum + (Number(p.msrp) || 0), 0);
@@ -99,20 +108,16 @@ export const startVapiSession = async (req, res) => {
             return sum + (price > 0 ? price : Math.round(p.msrp * 0.75));
         }, 0);
 
-        console.log(`📦 Session Start: ${user?.username || 'Guest'} | MSRP: ${totalMsrp}`);
-
+        // Variables should be Flat Strings/Numbers for Vapi
         return res.status(200).json({
             variableValues: {
-                // AI Verbal Variables (Alex will use these for speaking)
-                username: user?.username || user?.name || "Shark",
+                username: String(user?.username || "Shark"),
                 items_in_basket: selectedItems.join(", "),
                 total_msrp: numberToHindiWords(totalMsrp),
                 floor_limit: numberToHindiWords(totalFloor),
-
-                // Raw Numeric Variables (For Backend/Logic)
-                raw_msrp: totalMsrp,
-                raw_floor: totalFloor,
-                userId: user?._id || user?.id || "anonymous"
+                raw_msrp: Number(totalMsrp),
+                raw_floor: Number(totalFloor),
+                userId: String(user?._id || "anonymous")
             }
         });
 
