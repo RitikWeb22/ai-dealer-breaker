@@ -24,35 +24,48 @@ export const useNegotiation = () => {
             setIsCallActive(false);
             // Agar deal confirm hui thi, toh call khatam hote hi leaderboard bhejo
             if (hasProcessedDeal.current) {
+                console.log("🏆 Navigating to Leaderboard...");
                 navigate("/leaderboard");
             }
         };
 
         const onMessage = (message) => {
-            // Frontend side check for tool calls
-            if (message.type === 'tool-calls') {
-                const dealTool = message.toolCalls?.find(tc => tc.function?.name === "confirmDeal");
+            // 🛠️ Tool Call Detection (Dono formats check kar rahe hain)
+            const toolCalls = message.toolCalls || message.toolCallList;
+
+            if (message.type === 'tool-calls' || toolCalls) {
+                const dealTool = toolCalls?.find(tc =>
+                    (tc.function?.name === "confirmDeal") || (tc.name === "confirmDeal")
+                );
+
                 if (dealTool && !hasProcessedDeal.current) {
                     hasProcessedDeal.current = true;
-                    console.log("🎯 Deal locked! Redirecting soon...");
+                    console.log("🎯 Deal locked! Backend is saving data...");
 
-                    // AI ko baat khatam karne ka mauka do
+                    // 🔌 Force Disconnect logic
+                    // AI ko final sentence bolne ka 4-5 seconds do, phir call kaat do
                     setTimeout(() => {
+                        console.log("🔌 Stopping Vapi Session...");
                         vapi.stop();
                     }, 5000);
                 }
             }
         };
 
+        const onError = (e) => {
+            console.error("❌ Vapi Error:", e);
+            setIsCallActive(false);
+            setLoading(false);
+        };
+
         vapi.on("call-start", onCallStart);
         vapi.on("call-end", onCallEnd);
         vapi.on("message", onMessage);
-        vapi.on("error", (e) => {
-            console.error("Vapi Error:", e);
-            setIsCallActive(false);
-        });
+        vapi.on("error", onError);
 
-        return () => vapi.removeAllListeners();
+        return () => {
+            vapi.removeAllListeners();
+        };
     }, [setIsCallActive, navigate]);
 
     const startVictorCall = useCallback(async (basketItems, user) => {
@@ -60,12 +73,14 @@ export const useNegotiation = () => {
         setLoading(true);
 
         try {
+            // 1. Backend se config fetch karo
             const config = await getNegotiationSession(basketItems, user);
 
-            // 🛠️ IMPORTANT: Ye values Assistant ki memory mein save ho jayengi
+            // 2. Variables setup
             const assistantOverrides = {
                 variableValues: {
                     username: String(config.variableValues?.username || user?.username || "Rohit"),
+                    // 'anonymous' string pass hogi agar guest hai, backend handle kar lega
                     userId: String(config.variableValues?.userId || user?._id || "anonymous"),
                     items_in_basket: String(config.variableValues?.items_in_basket),
                     raw_msrp: Number(config.variableValues?.raw_msrp),
@@ -75,15 +90,23 @@ export const useNegotiation = () => {
                 }
             };
 
+            console.log("🚀 Starting Call with Overrides:", assistantOverrides.variableValues);
+
+            // 3. Start Call
             await vapi.start(import.meta.env.VITE_VAPI_ASSISTANT_ID, assistantOverrides);
 
         } catch (error) {
-            console.error("❌ Failed to start:", error);
+            console.error("❌ Connection Error:", error);
             setIsCallActive(false);
         } finally {
             setLoading(false);
         }
     }, [isCallActive, loading, setIsCallActive]);
 
-    return { startVictorCall, loading, isConnected: isCallActive, stopCall: () => vapi.stop() };
+    return {
+        startVictorCall,
+        loading,
+        isConnected: isCallActive,
+        stopCall: () => vapi.stop()
+    };
 };

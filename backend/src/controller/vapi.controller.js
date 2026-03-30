@@ -2,13 +2,13 @@ import negotiationModel from "../models/negotiation.model.js";
 import numberToHindiWords from "../utils/Hindinumbers.js";
 import mongoose from "mongoose";
 
+// 1. Generate Assistant Config (Frontend starts call with this)
 export const getAssistantConfig = async (req, res) => {
     try {
         const { selectedItems, username, userId, raw_msrp, raw_floor } = req.body;
 
         console.log(`📦 Creating Config for: ${username} | MSRP: ${raw_msrp} | UserID: ${userId}`);
 
-        // Vapi expects this specific structure
         return res.status(200).json({
             variableValues: {
                 username: username || "Shark",
@@ -26,49 +26,47 @@ export const getAssistantConfig = async (req, res) => {
     }
 };
 
+// 2. Webhook Handler (Saves to DB and ends call)
 export const handleVapiWebhook = async (req, res) => {
     try {
         const { message } = req.body;
 
-        // Log to see what Vapi is sending (Debug point)
-        // console.log("📩 Webhook Received:", message.type);
-
         if (message?.type === 'tool-calls') {
             const toolCalls = message.toolCalls || [];
-
 
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === 'confirmDeal') {
                     let args = toolCall.function.arguments;
                     if (typeof args === 'string') args = JSON.parse(args);
 
-                    // 🛠️ SABSE IMPORTANT: Variables ko yahan se uthao
+                    // 🛠️ Variables extraction from Call Context
                     const vars = message.call?.variables || message.variables || {};
 
-                    // Priority: Tool Arguments se lo, fallback variables par rakho
-                    const finalPriceNum = Number(args.finalPrice || args.price) || 0;
                     const msrp = Number(vars.raw_msrp) || 0;
                     const floor = Number(vars.raw_floor) || (msrp * 0.75);
+                    const finalPriceNum = Number(args.finalPrice || args.price) || 0;
 
-                    // UserID check: agar tool args mein hai toh wo lo, warna variables wala
+                    // 🚨 userId FIX: 'anonymous' string ko null set karenge taaki Schema accept kare
                     const rawUserId = args.userId || vars.userId;
-                    const dbUserId = mongoose.Types.ObjectId.isValid(rawUserId) ? rawUserId : new mongoose.Types.ObjectId();
+                    const dbUserId = (rawUserId && mongoose.Types.ObjectId.isValid(rawUserId))
+                        ? rawUserId
+                        : null;
 
                     const dbUsername = vars.username || "Guest Shark";
 
-                    // Efficiency Score Calculation
+                    // 📉 Efficiency Score Logic
                     let efficiency = 0;
-                    const maxPossibleSavings = msrp - floor;
-                    const actualSavings = msrp - finalPriceNum;
-                    if (maxPossibleSavings > 0) {
-                        efficiency = (actualSavings / maxPossibleSavings) * 100;
+                    const maxSavings = msrp - floor;
+                    const userSavings = msrp - finalPriceNum;
+                    if (maxSavings > 0) {
+                        efficiency = (userSavings / maxSavings) * 100;
                     }
                     const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
 
                     const negotiationData = {
-                        userId: dbUserId,
+                        userId: dbUserId, // null if anonymous, valid ID if logged in
                         username: dbUsername,
-                        items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Product"],
+                        items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Items"],
                         totalMsrp: msrp,
                         finalPrice: finalPriceNum,
                         floorPrice: floor,
@@ -77,22 +75,28 @@ export const handleVapiWebhook = async (req, res) => {
                         callId: message.call?.id || toolCall.id
                     };
 
-                    await negotiationModel.findOneAndUpdate(
-                        { callId: negotiationData.callId },
-                        negotiationData,
-                        { upsert: true, new: true }
-                    );
+                    try {
+                        // 💾 Upsert to DB: callId unique constraint ka fayda uthayenge
+                        await negotiationModel.findOneAndUpdate(
+                            { callId: negotiationData.callId },
+                            negotiationData,
+                            { upsert: true, new: true }
+                        );
+                        console.log(`✅ [DB SAVE]: ${dbUsername} saved!`);
+                    } catch (dbErr) {
+                        console.error("❌ [DB SAVE ERROR]:", dbErr.message);
+                    }
 
-                    console.log(`✅ Success: ${dbUsername} saved with ${finalEfficiency}% efficiency`);
-
+                    // 🔌 This result goes back to AI to let it know the tool worked
                     return {
                         toolCallId: toolCall.id,
-                        result: "Deal recorded on leaderboard."
+                        result: `Deal successfully recorded for ${dbUsername}. You can now end the call.`
                     };
                 }
                 return { toolCallId: toolCall.id, result: "Processed" };
             }));
 
+            // ⚡ 201 Status + Results are CRITICAL for Vapi
             return res.status(201).json({ results });
         }
 
@@ -104,12 +108,12 @@ export const handleVapiWebhook = async (req, res) => {
     }
 };
 
+// 3. Leaderboard Fetch
 export const getLeaderboard = async (req, res) => {
     try {
         const topSharks = await negotiationModel.find()
             .sort({ efficiencyScore: -1, createdAt: -1 })
             .limit(10);
-
         res.status(200).json({ success: true, data: topSharks });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
