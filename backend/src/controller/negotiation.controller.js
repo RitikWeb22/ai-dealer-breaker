@@ -2,75 +2,76 @@ import negotiationModel from '../models/negotiation.model.js';
 import productModel from '../models/product.model.js';
 
 // 🚀 FIX: Is controller ko Vapi Dashboard mein as "Server URL" use karna
+import negotiationModel from '../models/negotiation.model.js';
+import mongoose from 'mongoose';
+
 export const createNegotiation = async (req, res) => {
     try {
         const { message } = req.body;
 
-        // 1. Check for 'tool-calls' (Vapi plural format)
         if (message?.type === 'tool-calls') {
             const toolCalls = message.toolCalls || [];
 
-            // Sabhi tool calls ko process karein (Usually ek hi hota hai 'confirmDeal')
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === "confirmDeal") {
 
-                    // ✅ SAFE PARSING: Arguments string ya object dono ho sakte hain
                     let args = toolCall.function.arguments;
                     if (typeof args === 'string') {
-                        try { args = JSON.parse(args); } catch (e) { console.error("Args Parsing Error"); }
+                        try { args = JSON.parse(args); } catch (e) { console.error("JSON Parse Error"); }
                     }
 
-                    const { finalPrice, items } = args;
-
-                    // 2. Extract hidden variables from call context
+                    const { finalPrice, items: itemsFromAlex } = args;
                     const vars = message.call?.variables || {};
+
+                    // ✅ FIX 1: Data Type Alignment
                     const totalMsrp = Number(vars.raw_msrp) || 0;
-                    const floor_limit = Number(vars.raw_floor) || (totalMsrp * 0.75); // Fallback to 75%
+                    const floor_limit = Number(vars.raw_floor) || (totalMsrp * 0.75);
                     const finalPriceNum = Number(finalPrice);
 
-                    // ✅ Efficiency Score Logic
+                    // Efficiency Logic
                     const possibleSavings = totalMsrp - floor_limit;
                     const actualSavings = totalMsrp - finalPriceNum;
                     let efficiency = possibleSavings <= 0 ? 100 : (actualSavings / possibleSavings) * 100;
+                    const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
 
-                    // Clamp 0-100 and format
-                    const finalEfficiency = Math.min(Math.max(efficiency, 0), 100).toFixed(2);
+                    // ✅ FIX 2: ObjectId Validation
+                    // Agar userId valid MongoID nahi hai, toh ek fallback system lagao
+                    const validUserId = mongoose.Types.ObjectId.isValid(vars.userId)
+                        ? vars.userId
+                        : new mongoose.Types.ObjectId(); // Generate temporary ID if missing
 
-                    // 3. Save to MongoDB
+                    // ✅ FIX 3: Field Name Match (items instead of item)
                     const negotiation = await negotiationModel.create({
-                        userId: vars.userId || "anonymous",
+                        userId: validUserId,
                         username: vars.username || "Guest",
-                        // Items format handling
-                        item: Array.isArray(items) ? items : (typeof items === 'string' ? items.split(',') : [vars.items_in_basket]),
+                        items: Array.isArray(itemsFromAlex)
+                            ? itemsFromAlex
+                            : (typeof itemsFromAlex === 'string' ? itemsFromAlex.split(',') : [vars.items_in_basket]),
                         totalMsrp,
                         finalPrice: finalPriceNum,
                         floorPrice: floor_limit,
-                        efficiencyScore: Number(finalEfficiency)
+                        efficiencyScore: Number(finalEfficiency.toFixed(2))
                     });
 
-                    console.log(`✅ [DB SUCCESS] Deal Saved: ID ${negotiation._id} | User: ${vars.username}`);
+                    console.log(`✅ [DB SAVED] ID: ${negotiation._id} | User: ${vars.username}`);
 
-                    // 4. Return correct toolCallId and result
                     return {
                         toolCallId: toolCall.id,
-                        result: `Deal confirmed at ₹${finalPriceNum}. Data sent to leaderboard.`
+                        result: "Deal confirmed and leaderboard updated."
                     };
                 }
-                return { toolCallId: toolCall.id, result: "Tool not handled" };
+                return { toolCallId: toolCall.id, result: "Tool ignored." };
             }));
 
-            // ✅ Vapi hamesha 201 status aur results array expect karta hai
             return res.status(201).json({ results });
         }
-
-        // Baki messages (assistant-speaking, etc.) ke liye 200 OK
         return res.status(200).json({ status: 'received' });
 
     } catch (err) {
-        console.error("❌ Webhook Critical Error:", err);
-        // Fail-safe response taaki call hang na ho
+        console.error("❌ CRITICAL WEBHOOK ERROR:", err.message);
+        // Fail-safe response
         return res.status(201).json({
-            results: [{ toolCallId: req.body.message?.toolCalls?.[0]?.id, result: "Error but call processed" }]
+            results: [{ toolCallId: req.body.message?.toolCalls?.[0]?.id, result: "Internal processing error" }]
         });
     }
 };
