@@ -54,7 +54,7 @@ export const useNegotiation = () => {
                     };
 
                     // Example save call (Update endpoint as per your backend)
-                    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/negotiation/save`, {
+                    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/negotiation/negotiations`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
