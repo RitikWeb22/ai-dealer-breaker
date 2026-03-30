@@ -1,79 +1,92 @@
-import mongoose from 'mongoose';
 import negotiationModel from '../models/negotiation.model.js';
+import mongoose from 'mongoose';
 import productModel from '../models/product.model.js';
+
 
 export const createNegotiation = async (req, res) => {
     try {
         const { message } = req.body;
 
+        // Log check karne ke liye ki webhook hit hua ya nahi
+        console.log("📩 Webhook Received. Type:", message?.type);
+
         if (message?.type === 'tool-calls') {
             const toolCalls = message.toolCalls || [];
+            console.log("🛠️ Tool Calls detected:", toolCalls.length);
 
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === "confirmDeal") {
 
+                    // 1. Arguments Parsing
                     let args = toolCall.function.arguments;
-                    if (typeof args === 'string') {
-                        try { args = JSON.parse(args); } catch (e) { console.error("JSON Parse Error"); }
-                    }
-
+                    if (typeof args === 'string') args = JSON.parse(args);
                     const { finalPrice, items: itemsFromAlex } = args;
-                    const vars = message.call?.variables || {};
 
-                    // ✅ FIX 1: Data Type Alignment
-                    const totalMsrp = Number(vars.raw_msrp) || 0;
-                    const floor_limit = Number(vars.raw_floor) || (totalMsrp * 0.75);
+                    // 2. Variables Extraction
+                    const vars = message.call?.variables || {};
+                    const totalMsrp = Number(vars.raw_msrp || vars.raw_msrp_val) || 0;
+                    const floorLimit = Number(vars.raw_floor || vars.raw_floor_val) || 0;
                     const finalPriceNum = Number(finalPrice);
 
-                    // Efficiency Logic
-                    const possibleSavings = totalMsrp - floor_limit;
+                    console.log(`📊 Processing Deal: MSRP ${totalMsrp}, Final ${finalPriceNum}`);
+
+                    // 3. Efficiency Calculation
+                    const possibleSavings = totalMsrp - floorLimit;
                     const actualSavings = totalMsrp - finalPriceNum;
                     let efficiency = possibleSavings <= 0 ? 100 : (actualSavings / possibleSavings) * 100;
-                    const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
+                    const finalEfficiency = Number(Math.min(Math.max(efficiency, 0), 100).toFixed(2));
 
-                    // ✅ FIX 2: ObjectId Validation
-                    // Agar userId valid MongoID nahi hai, toh ek fallback system lagao
-                    const validUserId = mongoose.Types.ObjectId.isValid(vars.userId)
-                        ? vars.userId
-                        : new mongoose.Types.ObjectId(); // Generate temporary ID if missing
+                    // 4. CRITICAL FIX: UserID Validation
+                    // Agar userId frontend se sahi nahi aa rahi, toh ye line usey fix karegi
+                    let validUserId;
+                    if (vars.userId && mongoose.Types.ObjectId.isValid(vars.userId)) {
+                        validUserId = vars.userId;
+                    } else if (vars.user?.id && mongoose.Types.ObjectId.isValid(vars.user.id)) {
+                        validUserId = vars.user.id;
+                    } else {
+                        // Agar koi ID nahi mili, toh temporary ID banao (Riksy but saves data)
+                        validUserId = new mongoose.Types.ObjectId();
+                        console.warn("⚠️ Valid UserId missing, using temporary ID");
+                    }
 
-                    // ✅ FIX 3: Field Name Match (items instead of item)
-                    const negotiation = await negotiationModel.create({
-                        userId: validUserId,
-                        username: vars.username || "Guest",
-                        items: Array.isArray(itemsFromAlex)
-                            ? itemsFromAlex
-                            : (typeof itemsFromAlex === 'string' ? itemsFromAlex.split(',') : [vars.items_in_basket]),
-                        totalMsrp,
-                        finalPrice: finalPriceNum,
-                        floorPrice: floor_limit,
-                        efficiencyScore: Number(finalEfficiency.toFixed(2))
-                    });
+                    // 5. Database Save
+                    try {
+                        const negotiation = await negotiationModel.create({
+                            userId: validUserId,
+                            username: vars.username || vars.user?.name || "Guest Shark",
+                            items: Array.isArray(itemsFromAlex) ? itemsFromAlex : [vars.items_in_basket || "Product Pack"],
+                            totalMsrp,
+                            finalPrice: finalPriceNum,
+                            floorPrice: floorLimit,
+                            efficiencyScore: finalEfficiency
+                        });
 
-                    console.log(`✅ [DB SAVED] ID: ${negotiation._id} | User: ${vars.username}`);
+                        console.log("✅ [DATABASE SAVE SUCCESS]:", negotiation._id);
 
-                    return {
-                        toolCallId: toolCall.id,
-                        result: "Deal confirmed and leaderboard updated."
-                    };
+                        return {
+                            toolCallId: toolCall.id,
+                            result: "Shark! Deal recorded. Check leaderboard."
+                        };
+                    } catch (dbErr) {
+                        console.error("❌ [MONGODB SAVE ERROR]:", dbErr.message);
+                        throw dbErr;
+                    }
                 }
-                return { toolCallId: toolCall.id, result: "Tool ignored." };
+                return { toolCallId: toolCall.id, result: "Not a deal tool." };
             }));
 
             return res.status(201).json({ results });
         }
+
         return res.status(200).json({ status: 'received' });
 
     } catch (err) {
-        console.error("❌ CRITICAL WEBHOOK ERROR:", err.message);
-        // Fail-safe response
+        console.error("❌ [WEBHOOK CRITICAL FAIL]:", err);
         return res.status(201).json({
-            results: [{ toolCallId: req.body.message?.toolCalls?.[0]?.id, result: "Internal processing error" }]
+            results: [{ toolCallId: req.body.message?.toolCalls?.[0]?.id, result: "Error" }]
         });
     }
 };
-
-
 // 🛠️ Start Session: Frontend logic to fetch prices and set Vapi variables
 export const startVapiSession = async (req, res) => {
     try {
