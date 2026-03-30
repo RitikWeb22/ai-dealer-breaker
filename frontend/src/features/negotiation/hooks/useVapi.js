@@ -20,20 +20,17 @@ export const useNegotiation = () => {
             setIsCallActive(false);
         };
 
-        // 🚀 THE FIX: Listening to Tool Calls for Auto-Disconnect & Redirect
+        // 🚀 YE HAI ASLI FIX: Frontend Tool Call Detection
         const onMessage = (message) => {
-            // Check if Alex triggered the "confirmDeal" tool
-            if (
-                message.type === "tool-calls" &&
-                message.toolCalls[0]?.function?.name === "confirmDeal"
-            ) {
-                console.log("🎯 Deal Logic Triggered: Redirecting in 4s...");
+            // Vapi tool calls ko 'message' ke through frontend bhejta hai
+            if (message.type === 'tool-calls' && message.toolCalls[0]?.function?.name === "confirmDeal") {
+                console.log("🎯 Deal Finalized by Alex! Redirecting...");
 
-                // 4 seconds delay: Alex ko "Mubarak ho..." poora bolne ka mauka milega
+                // 3-4 seconds delay taaki Alex apni badhai wali line poori kar sake
                 setTimeout(() => {
-                    vapi.stop(); // Forcefully disconnect Vapi
+                    vapi.stop(); // Force Stop Call
                     setIsCallActive(false);
-                    navigate("/leaderboard"); // Redirect to Leaderboard
+                    navigate("/leaderboard"); // Force Redirect
                 }, 4000);
             }
         };
@@ -41,7 +38,7 @@ export const useNegotiation = () => {
         vapi.on("call-start", onCallStart);
         vapi.on("call-end", onCallEnd);
         vapi.on("error", onError);
-        vapi.on("message", onMessage); // 3. Message listener active kiya
+        vapi.on("message", onMessage); // Isse register karna zaroori hai
 
         return () => {
             vapi.off("call-start", onCallStart);

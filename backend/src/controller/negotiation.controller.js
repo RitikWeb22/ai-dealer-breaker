@@ -1,129 +1,109 @@
-import negotiationModel from '../models/negotiation.model.js'
+import negotiationModel from '../models/negotiation.model.js';
 import productModel from '../models/product.model.js';
 import axios from 'axios';
 
+// 🚀 FIX: Is controller ko Vapi Dashboard mein as "Server URL" use karna
 export const createNegotiation = async (req, res) => {
     const { message } = req.body;
 
-    if (message?.type === 'tool-call') {
-        const toolCall = message?.toolCall[0];
+    // 1. MUST: Vapi hamesha 'tool-calls' (plural) bhejta hai
+    if (message?.type === 'tool-calls') {
+        const toolCall = message?.toolCalls?.[0]; // Array access fix
+
         if (toolCall?.function?.name === "confirmDeal") {
             try {
+                // 2. Arguments extract karo (Jo Alex ne bhejey)
                 const { finalPrice, items } = toolCall.function.arguments;
-                const { userId, username, totalMsrp, floor_limit } = message.call.assistantOverrides.variableValues;
 
-                // Efficiency calculation with safety for division by zero
+                // 3. Variables extract karo (Jo Call context mein hain)
+                const vars = message.call?.variables || {};
+                const totalMsrp = Number(vars.raw_msrp) || 0;
+                const floor_limit = Number(vars.raw_floor) || 0;
+                const finalPriceNum = Number(finalPrice);
+
+                // Efficiency Score Logic (Limit 0-100)
                 const possibleSavings = totalMsrp - floor_limit;
-                const actualSavings = totalMsrp - finalPrice;
-                const efficiency = possibleSavings <= 0 ? 100 : (actualSavings / possibleSavings) * 100;
+                const actualSavings = totalMsrp - finalPriceNum;
+                let efficiency = possibleSavings <= 0 ? 100 : (actualSavings / possibleSavings) * 100;
+                efficiency = Math.min(Math.max(efficiency, 0), 100).toFixed(2);
 
+                // 4. Save to MongoDB
                 const negotiation = await negotiationModel.create({
-                    userId,
-                    username,
-                    item: typeof items === 'string' ? items.split(',') : [items],
+                    userId: vars.userId || "anonymous",
+                    username: vars.username || "Guest",
+                    // Items ko array mein convert karna agar string hai
+                    item: typeof items === 'string' ? items.split(',').map(i => i.trim()) : (Array.isArray(items) ? items : [items]),
                     totalMsrp,
-                    finalPrice,
+                    finalPrice: finalPriceNum,
                     floorPrice: floor_limit,
-                    efficiencyScore: efficiency.toFixed(2)
+                    efficiencyScore: efficiency
                 });
 
+                console.log(`✅ Deal Saved: ID ${negotiation._id} for ${vars.username}`);
+
+                // 5. CRITICAL: Vapi ko ye format chahiye call end karne ke liye
                 return res.status(201).json({
                     results: [{
                         toolCallId: toolCall.id,
-                        result: `Deal confirmed at ₹${finalPrice}. Victor is impressed!`
+                        result: `Deal confirmed at ₹${finalPriceNum}. Leaderboard updated!`
                     }]
                 });
+
             } catch (err) {
-                console.error("DB Save Error:", err);
-                return res.status(500).json({ error: "Failed to save deal" });
+                console.error("❌ DB Save Error:", err);
+                // Fail hone par bhi response do taaki call hang na ho
+                return res.status(200).json({
+                    results: [{ toolCallId: toolCall.id, result: "Internal error but call processed" }]
+                });
             }
         }
     }
-    res.status(200).json({ message: 'Message received' });
-}
 
+    // Default status for other message types
+    res.status(200).json({ status: 'received' });
+};
+
+// 🏆 Leaderboard Fetch Logic
 export const getLeaderboard = async (req, res) => {
     try {
-        const topSharks = await negotiationModel.find() // 👈 Fixed name
-            .sort({ efficiencyScore: -1 })
+        const topSharks = await negotiationModel.find()
+            .sort({ efficiencyScore: -1, createdAt: -1 }) // Best score first, then newest
             .limit(10)
-            .select('username items efficiencyScore finalPrice createdAt');
+            .select('username item efficiencyScore finalPrice createdAt');
 
         res.status(200).json({ success: true, data: topSharks });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
-}
+};
 
+// 🛠️ Helper to fetch items and calculate prices for the Frontend Start Call
 export const startVapiSession = async (req, res) => {
     try {
         const { selectedItems, user } = req.body;
 
         if (!selectedItems || selectedItems.length === 0) {
-            return res.status(400).json({ success: false, message: "Basket is empty! Pick something first." });
+            return res.status(400).json({ success: false, message: "Basket empty" });
         }
-
 
         const products = await productModel.find({ name: { $in: selectedItems } });
+        const totalMsrp = products.reduce((sum, p) => sum + (p.msrp || 0), 0);
+        const totalFloor = products.reduce((sum, p) => sum + (p.floor_price || 0), 0);
 
-        if (products.length === 0) {
-            return res.status(404).json({ success: false, message: "Selected products not found in DB." });
-        }
-
-        const totalMsrp = products.reduce((sum, p) => sum + p.msrp, 0);
-        const totalFloor = products.reduce((sum, p) => sum + p.floor_price, 0);
-
-        // 4. Check user history (Optional: Personality logic ke liye)
-        const previousWins = await negotiationModel.countDocuments({ userId: user?.id });
-
-
-        const vapiConfig = {
-            firstMessage: previousWins > 0
-                ? `Welcome back ${user?.name || 'friend'}. I haven't forgotten how you robbed me last time.`
-                : `Hello ${user?.name || 'there'}. I see you've got your eyes on the ${selectedItems.join(" and ")}.`,
-
+        // Vapi prompt ke liye configuration
+        return res.status(200).json({
             variableValues: {
-                username: user.name,
+                username: user?.name || "Customer",
                 items_in_basket: selectedItems.join(", "),
-                total_msrp: totalMsrp,
+                total_msrp: totalMsrp, // Backend calculation
                 floor_limit: totalFloor,
-                userId: user.id
+                raw_msrp: totalMsrp,
+                raw_floor: totalFloor,
+                userId: user?.id || "anonymous"
             }
-        };
-
-        return res.status(200).json(vapiConfig);
+        });
 
     } catch (error) {
-        console.error("VAPI SESSION ERROR:", error);
-        return res.status(500).json({
-            success: false,
-            error: "Victor's brain is fried",
-            details: error.message
-        });
+        res.status(500).json({ error: error.message });
     }
 };
-
-export const updateVictorPersonality = async (req, res) => {
-    try {
-        const { userId } = req.body;
-        const previousWins = await negotiationModel.countDocuments({ userId }); // 👈 Fixed name
-
-        let mood = "friendly";
-        let instruction = "Be a tough but fair shopkeeper.";
-
-        if (previousWins > 2) {
-            mood = "aggressive";
-            instruction = "You know this guy is a shark. Be extremely sarcastic and don't give in easily.";
-        }
-
-        await axios.patch(
-            `https://api.vapi.ai/assistant/${process.env.VAPI_ASSISTANT_ID}`,
-            { model: { messages: [{ role: "system", content: `You are Alex. ${instruction}` }] } },
-            { headers: { 'Authorization': `Bearer ${process.env.VAPI_SECRET_KEY}` } }
-        );
-
-        res.status(200).json({ success: true, currentMood: mood });
-    } catch (error) {
-        res.status(500).json({ error: "Failed to update Victor" });
-    }
-}
