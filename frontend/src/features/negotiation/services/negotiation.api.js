@@ -41,4 +41,4 @@ export const getNegotiationSession = async (basketItems, user) => {
         console.error("❌ Negotiation API Error:", error.response?.data || error.message);
         throw error;
     }
-};
+};  

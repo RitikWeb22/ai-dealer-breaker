@@ -12,28 +12,25 @@ const calculateFloorPrice = (totalMsrp, products) => {
 
 export const getAssistantConfig = async (req, res) => {
     try {
-        const { selectedItems, user } = req.body;
-        const productsFromDB = await productModel.find({ name: { $in: selectedItems } });
+        // Frontend se 'raw_msrp' aur 'raw_floor' direct aa rahe hain ab (as per your new frontend code)
+        const { selectedItems, username, userId, raw_msrp, raw_floor } = req.body;
 
-        if (!productsFromDB.length) {
-            return res.status(404).json({ error: "Koi bhi item nahi mila database mein" });
-        }
+        console.log(`📦 Creating Config for: ${username} | MSRP: ${raw_msrp}`);
 
-        const totalMsrp = productsFromDB.reduce((sum, p) => sum + (p.msrp || 0), 0);
-        const totalFloor = calculateFloorPrice(totalMsrp, productsFromDB);
-
-        // ✅ LOGGING FOR DEBUGGING
-        console.log(`📦 Config for ${user?.name || "Guest"}: MSRP ${totalMsrp}, Floor ${totalFloor}`);
-
+        // Vapi expects this specific structure to persist variables
         return res.status(200).json({
             variableValues: {
-                username: user?.name || "Guest",
-                userId: user?.id || user?._id || "anonymous",
+                // Inhe AI use karega negotiation ke liye
+                username: username || "Shark",
+                userId: userId || "anonymous",
                 items_in_basket: selectedItems.join(", "),
-                total_msrp: numberToHindiWords(totalMsrp),
-                floor_limit: numberToHindiWords(totalFloor),
-                raw_msrp: totalMsrp,
-                raw_floor: totalFloor
+                total_msrp: numberToHindiWords(raw_msrp),
+                floor_limit: numberToHindiWords(raw_floor),
+
+                // 🚨 CRITICAL: Inhe hum Webhook mein extract karenge
+                // Inhe 'raw_' prefix ke saath hi rakho taaki confusion na ho
+                raw_msrp: Number(raw_msrp),
+                raw_floor: Number(raw_floor)
             }
         });
     } catch (error) {
@@ -47,74 +44,53 @@ export const handleVapiWebhook = async (req, res) => {
         const { message } = req.body;
 
         if (message?.type === 'tool-calls') {
-            const toolCalls = message.toolCalls || [];
+            const toolCall = message.toolCalls?.find(t => t.function?.name === 'confirmDeal');
 
-            const results = await Promise.all(toolCalls.map(async (toolCall) => {
-                if (toolCall.function?.name === 'confirmDeal') {
-                    let args = toolCall.function.arguments;
-                    if (typeof args === 'string') args = JSON.parse(args);
+            if (toolCall) {
+                let args = toolCall.function.arguments;
+                if (typeof args === 'string') args = JSON.parse(args);
 
-                    const { finalPrice } = args;
-                    const vars = message.call?.variables || {};
+                // ✅ Extraction from 'message.call.variables'
+                const vars = message.call?.variables || {};
 
-                    // ✅ SOURCE FALLBACK LOGIC (For User & Prices)
-                    const msrp = Number(vars.raw_msrp) || Number(vars.raw_msrp_val) || 0;
-                    const floor = Number(vars.raw_floor) || Number(vars.raw_floor_val) || 0;
-                    const finalPriceNum = Number(finalPrice);
+                // Fallback logic agar variables missing hon toh
+                const msrp = Number(vars.raw_msrp) || 0;
+                const floor = Number(vars.raw_floor) || 0;
+                const finalPriceNum = Number(args.finalPrice) || 0;
 
-                    const dbUsername = vars.username || vars.user?.name || "Guest";
-                    const rawUserId = vars.userId || vars.user?.id || "anonymous";
+                const dbUsername = vars.username || "Guest Shark";
+                const dbUserId = vars.userId || "65f1a2b3c4d5e6f7a8b9c0d1";
 
-                    // ✅ Efficiency Calculation
-                    let efficiency = 0;
-                    const possibleSavings = msrp - floor;
-                    const actualSavings = msrp - finalPriceNum;
-
-                    if (possibleSavings > 0) {
-                        efficiency = (actualSavings / possibleSavings) * 100;
-                    } else if (msrp > 0) {
-                        // Fallback if floor is somehow 0
-                        efficiency = ((msrp - finalPriceNum) / (msrp * 0.25)) * 100;
-                    }
-                    const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
-
-                    // ✅ ObjectId Validation
-                    const isValidId = mongoose.Types.ObjectId.isValid(rawUserId);
-                    const dbUserId = isValidId ? rawUserId : new mongoose.Types.ObjectId("65f1a2b3c4d5e6f7a8b9c0d1");
-
-                    try {
-                        const savedData = await negotiationModel.create({
-                            userId: dbUserId,
-                            username: dbUsername,
-                            items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Deal Product"],
-                            totalMsrp: msrp,
-                            finalPrice: finalPriceNum,
-                            floorPrice: floor,
-                            efficiencyScore: Number(finalEfficiency.toFixed(2))
-                        });
-                        console.log(`✅ [DB SUCCESS] Saved for ${dbUsername} | Efficiency: ${finalEfficiency}%`);
-                    } catch (dbErr) {
-                        console.error("❌ [DB SAVE FAILED]:", dbErr.message);
-                    }
-
-                    return {
-                        toolCallId: toolCall.id,
-                        result: "Deal recorded successfully."
-                    };
+                // ✅ Score Logic
+                let efficiency = 0;
+                if (msrp > floor && (msrp - floor) > 0) {
+                    efficiency = ((msrp - finalPriceNum) / (msrp - floor)) * 100;
                 }
-                return { toolCallId: toolCall.id, result: "Tool ignored." };
-            }));
+                const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
 
-            return res.status(201).json({ results });
+                await negotiationModel.create({
+                    userId: dbUserId,
+                    username: dbUsername,
+                    items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Product"],
+                    totalMsrp: msrp,
+                    finalPrice: finalPriceNum,
+                    floorPrice: floor,
+                    efficiencyScore: Number(finalEfficiency.toFixed(2))
+                });
+
+                console.log(`🚀 [SAVED] ${dbUsername} scored ${finalEfficiency}%`);
+
+                return res.status(201).json({
+                    results: [{ toolCallId: toolCall.id, result: "Deal stored!" }]
+                });
+            }
         }
-        return res.status(200).json({ status: "received" });
-
+        return res.status(200).json({ status: "ok" });
     } catch (error) {
         console.error("❌ Webhook Error:", error);
-        return res.status(200).json({ error: "Fail-safe response" });
+        return res.status(200).json({ error: "Fail-safe" });
     }
 };
-
 export const getLeaderboard = async (req, res) => {
     try {
         const topSharks = await negotiationModel.find()
