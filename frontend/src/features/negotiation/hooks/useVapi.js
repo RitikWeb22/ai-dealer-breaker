@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom'; // 1. Navigation import kiya
 import Vapi from "@vapi-ai/web";
 import { getNegotiationSession } from '../services/negotiation.api';
 import { useNegotiationContext } from '../negotiation.context';
 
-// Module-level singleton — shared across the app
+// Module-level singleton
 const vapi = new Vapi(import.meta.env.VITE_VAPI_PUBLIC_KEY);
 
 export const useNegotiation = () => {
     const { isCallActive, setIsCallActive } = useNegotiationContext();
     const [loading, setLoading] = useState(false);
+    const navigate = useNavigate(); // 2. Navigate initialize kiya
 
     useEffect(() => {
         const onCallStart = () => setIsCallActive(true);
@@ -18,16 +20,36 @@ export const useNegotiation = () => {
             setIsCallActive(false);
         };
 
+        // 🚀 THE FIX: Listening to Tool Calls for Auto-Disconnect & Redirect
+        const onMessage = (message) => {
+            // Check if Alex triggered the "confirmDeal" tool
+            if (
+                message.type === "tool-calls" &&
+                message.toolCalls[0]?.function?.name === "confirmDeal"
+            ) {
+                console.log("🎯 Deal Logic Triggered: Redirecting in 4s...");
+
+                // 4 seconds delay: Alex ko "Mubarak ho..." poora bolne ka mauka milega
+                setTimeout(() => {
+                    vapi.stop(); // Forcefully disconnect Vapi
+                    setIsCallActive(false);
+                    navigate("/leaderboard"); // Redirect to Leaderboard
+                }, 4000);
+            }
+        };
+
         vapi.on("call-start", onCallStart);
         vapi.on("call-end", onCallEnd);
         vapi.on("error", onError);
+        vapi.on("message", onMessage); // 3. Message listener active kiya
 
         return () => {
             vapi.off("call-start", onCallStart);
             vapi.off("call-end", onCallEnd);
             vapi.off("error", onError);
+            vapi.off("message", onMessage);
         };
-    }, [setIsCallActive]);
+    }, [setIsCallActive, navigate]);
 
     const startVictorCall = useCallback(async (basketItems, user) => {
         if (loading || isCallActive) return;
@@ -36,11 +58,8 @@ export const useNegotiation = () => {
             const config = await getNegotiationSession(basketItems, user);
 
             const assistantOverrides = {
-                // ✅ endCallPhrases — VAPI khud call kaatega jab Alex yeh bole
-                endCallPhrases: [
-                    "Have a great day!",
-                    "Shukriya!"
-                ],
+                // Phrases as backup, but the logic above is more reliable
+                endCallPhrases: ["Have a great day!", "Shukriya!"],
                 variableValues: {
                     username: String(user?.username || "Customer"),
                     items_in_basket: String(basketItems.map(i => i.name).join(", ")),
