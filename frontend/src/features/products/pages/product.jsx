@@ -19,7 +19,6 @@ const ProductPage = () => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [timer, setTimer] = useState(0);
   const timerRef = useRef(null);
-  // Ref to prevent double-navigation
   const hasNavigated = useRef(false);
 
   const { user, loading: authLoading } = useAuth();
@@ -30,20 +29,21 @@ const ProductPage = () => {
     vapi,
   } = useNegotiation();
 
-  // Fetch products on mount
+  // Fetch products with optional chaining fix
   useEffect(() => {
-    fetchAllProducts().then((data) => setProducts(data.products));
+    fetchAllProducts().then((data) => {
+      if (data?.products) {
+        setProducts(data.products);
+      }
+    });
   }, []);
 
-  // ✅ FIXED: VAPI event listeners — call-end + confirmDeal tool detection
   useEffect(() => {
     if (!vapi) return;
 
-    // Reset nav guard whenever a new call starts
     hasNavigated.current = false;
 
-    const navigateAway = (delay = 1500) => {
-      // Guard: navigate only once per call session
+    const navigateAway = (delay = 1000) => {
       if (hasNavigated.current) return;
       hasNavigated.current = true;
 
@@ -54,44 +54,47 @@ const ProductPage = () => {
       }, delay);
     };
 
-    // ✅ FIX 1: Detect confirmDeal tool call from Alex
-    // When Alex calls confirmDeal → stop the call → then navigate
     const handleMessage = (msg) => {
-      // VAPI sends tool calls as type "tool-calls"
+      // ✅ FIX 1: Correct Tool Call Detection (Vapi SDK uses msg.toolCalls)
       if (msg?.type === "tool-calls") {
-        const dealTool = msg.toolCallList?.find(
+        const toolCalls = msg.toolCalls || msg.toolCallList || [];
+        const dealTool = toolCalls.find(
           (t) => t.function?.name === "confirmDeal",
         );
+
         if (dealTool) {
-          console.log(
-            "✅ confirmDeal triggered:",
-            dealTool.function?.arguments,
-          );
-          // Give Alex ~2s to speak closing line, then stop call
+          console.log("✅ confirmDeal Detected. Ending call in 3s...");
+          // Let Alex finish his "Mubarak ho" line
           setTimeout(() => {
-            vapi?.stop();
-          }, 2000);
+            vapi.stop();
+          }, 3500);
         }
       }
 
-      // ✅ FIX 2: Catch endCallPhrases via transcript as fallback
-      // If VAPI assistant config has endCallPhrases set, call-end fires automatically.
-      // This handles the edge case where tool-calls event might be missed.
-      if (msg?.type === "transcript" && msg?.role === "assistant") {
-        const text = msg?.transcript?.toLowerCase() || "";
-        if (text.includes("have a great day") || text.includes("shukriya")) {
-          console.log("🎯 Closing phrase detected in transcript");
+      // ✅ FIX 2: Transcript-based fallback for disconnect
+      if (
+        msg?.type === "transcript" &&
+        msg?.role === "assistant" &&
+        msg?.transcriptType === "final"
+      ) {
+        const text = msg.transcript.toLowerCase();
+        if (
+          text.includes("mubarak ho") ||
+          text.includes("have a great day") ||
+          text.includes("shukriya")
+        ) {
+          console.log("🎯 Disconnect phrase detected in transcript");
           setTimeout(() => {
-            vapi?.stop();
-          }, 1500);
+            vapi.stop();
+          }, 2000);
         }
       }
     };
 
-    // ✅ FIX 3: call-end is the single source of truth for navigation
+    // ✅ FIX 3: Centralized Navigation on Call End
     const handleCallEnd = () => {
-      console.log("🏁 Call ended — navigating to leaderboard");
-      navigateAway(500); // Small delay so UI updates cleanly
+      console.log("🏁 Call disconnected. Moving to Leaderboard...");
+      navigateAway(500);
     };
 
     vapi.on("message", handleMessage);
@@ -103,11 +106,10 @@ const ProductPage = () => {
     };
   }, [vapi, navigate]);
 
-  // Timer logic
+  // Timer & Reset Logic
   useEffect(() => {
     if (isConnected) {
       setTimer(0);
-      hasNavigated.current = false; // Reset on new connection
       timerRef.current = setInterval(() => setTimer((prev) => prev + 1), 1000);
     } else {
       clearInterval(timerRef.current);
@@ -121,7 +123,10 @@ const ProductPage = () => {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const totalPrice = selectedItems.reduce((acc, item) => acc + item.msrp, 0);
+  const totalPrice = selectedItems.reduce(
+    (acc, item) => acc + (item.msrp || 0),
+    0,
+  );
 
   const toggleSelect = (product) => {
     const isSelected = selectedItems.find((i) => i._id === product._id);
@@ -133,7 +138,7 @@ const ProductPage = () => {
   };
 
   const handleNegotiate = () => {
-    if (selectedItems.length === 0) return;
+    if (selectedItems.length === 0 || authLoading) return;
     startVictorCall(selectedItems, user);
     setIsCartOpen(false);
   };
@@ -158,43 +163,52 @@ const ProductPage = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {products.map((product) => {
-            const isSelected = selectedItems.find((i) => i._id === product._id);
-            return (
-              <div
-                key={product._id}
-                onClick={() => toggleSelect(product)}
-                className={`group relative p-4 rounded-[2.5rem] border transition-all duration-700 overflow-hidden cursor-pointer ${
-                  isSelected
-                    ? "border-blue-500 bg-blue-600/5 shadow-2xl shadow-blue-500/10 scale-[1.02]"
-                    : "border-white/5 bg-zinc-900/30 hover:border-white/20"
-                }`}
-              >
-                <div className="aspect-square bg-zinc-800/30 rounded-xl mb-6 overflow-hidden relative">
-                  <img
-                    src={product.image}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
-                    alt={product.name}
-                  />
-                  {isSelected && (
-                    <div className="absolute inset-0 bg-blue-600/10 backdrop-blur-xs flex items-center justify-center animate-in fade-in duration-300">
-                      <div className="bg-blue-600 text-white p-4 rounded-full shadow-[0_0_30px_rgba(37,99,235,0.6)]">
-                        <HiOutlineShoppingCart className="text-2xl" />
+          {/* ✅ Safe Render with Optional Chaining */}
+          {products?.length > 0 ? (
+            products.map((product) => {
+              const isSelected = selectedItems.find(
+                (i) => i._id === product._id,
+              );
+              return (
+                <div
+                  key={product._id}
+                  onClick={() => toggleSelect(product)}
+                  className={`group relative p-4 rounded-[2.5rem] border transition-all duration-700 overflow-hidden cursor-pointer ${
+                    isSelected
+                      ? "border-blue-500 bg-blue-600/5 shadow-2xl shadow-blue-500/10 scale-[1.02]"
+                      : "border-white/5 bg-zinc-900/30 hover:border-white/20"
+                  }`}
+                >
+                  <div className="aspect-square bg-zinc-800/30 rounded-xl mb-6 overflow-hidden relative">
+                    <img
+                      src={product.image}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
+                      alt={product.name}
+                    />
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-blue-600/10 backdrop-blur-xs flex items-center justify-center animate-in fade-in duration-300">
+                        <div className="bg-blue-600 text-white p-4 rounded-full shadow-[0_0_30px_rgba(37,99,235,0.6)]">
+                          <HiOutlineShoppingCart className="text-2xl" />
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  <div className="px-2">
+                    <h3 className="font-bold text-zinc-500 group-hover:text-white transition-colors duration-300 truncate">
+                      {product.name}
+                    </h3>
+                    <p className="text-2xl font-black mt-2 tracking-tighter italic group-hover:text-blue-400 transition-colors">
+                      ₹{product.msrp?.toLocaleString() || 0}
+                    </p>
+                  </div>
                 </div>
-                <div className="px-2">
-                  <h3 className="font-bold text-zinc-500 group-hover:text-white transition-colors duration-300 truncate">
-                    {product.name}
-                  </h3>
-                  <p className="text-2xl font-black mt-2 tracking-tighter italic group-hover:text-blue-400 transition-colors">
-                    ₹{product.msrp.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <div className="col-span-full py-20 text-center text-zinc-500 uppercase tracking-widest font-bold">
+              Fetching inventory...
+            </div>
+          )}
         </div>
       </div>
 
@@ -212,7 +226,7 @@ const ProductPage = () => {
               <HiX className="text-zinc-400 hover:text-red-500" />
             </button>
           </div>
-          <div className="max-h-64 overflow-y-auto custom-scrollbar">
+          <div className="max-h-64 overflow-y-auto custom-scrollbar p-2">
             {selectedItems.length > 0 ? (
               <table className="w-full text-left">
                 <tbody className="divide-y divide-white/5">
@@ -222,7 +236,7 @@ const ProductPage = () => {
                         {item.name}
                       </td>
                       <td className="p-5 text-sm font-mono text-blue-400">
-                        ₹{item.msrp.toLocaleString()}
+                        ₹{item.msrp?.toLocaleString()}
                       </td>
                       <td className="p-5 text-right">
                         <button
@@ -282,7 +296,7 @@ const ProductPage = () => {
                     Negotiating Live
                   </p>
                 </div>
-                <h4 className="text-lg font-black italic">
+                <h4 className="text-lg font-black italic text-zinc-800">
                   Alex is listening...
                 </h4>
               </div>
