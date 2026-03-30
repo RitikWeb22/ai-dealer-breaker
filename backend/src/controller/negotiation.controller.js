@@ -1,6 +1,5 @@
 import negotiationModel from '../models/negotiation.model.js';
 import productModel from '../models/product.model.js';
-import axios from 'axios';
 
 // 🚀 FIX: Is controller ko Vapi Dashboard mein as "Server URL" use karna
 export const createNegotiation = async (req, res) => {
