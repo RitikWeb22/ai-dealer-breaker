@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom"; // 1. Added Navigate
 import { fetchAllProducts } from "../services/product.api";
 import { useNegotiation } from "../../negotiation/hooks/useVapi";
 import { useAuth } from "../../auth/hooks/useAuth";
-import Navbar from "../../auth/components/Navbar"; // 1. Navbar Import
+import Navbar from "../../auth/components/Navbar";
 import {
   HiOutlineShoppingCart,
   HiOutlineTrash,
@@ -12,6 +13,7 @@ import {
 } from "react-icons/hi";
 
 const ProductPage = () => {
+  const navigate = useNavigate(); // Initialize navigation
   const [products, setProducts] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -26,10 +28,39 @@ const ProductPage = () => {
     vapi,
   } = useNegotiation();
 
+  // Fetch products on mount
   useEffect(() => {
     fetchAllProducts().then((data) => setProducts(data.products));
   }, []);
 
+  // --- Redirect & Cleanup Logic ---
+  useEffect(() => {
+    if (!vapi) return;
+
+    const handleCallEnd = () => {
+      console.log("Call ended - cleaning up and redirecting...");
+
+      // 1. Unselect products immediately
+      setSelectedItems([]);
+
+      // 2. Close cart if open
+      setIsCartOpen(false);
+
+      // 3. Small delay to let the user process the end of the conversation
+      setTimeout(() => {
+        navigate("/leaderboard");
+      }, 1500);
+    };
+
+    // Listen for Vapi call end event
+    vapi.on("call-ended", handleCallEnd);
+
+    return () => {
+      vapi.off("call-ended", handleCallEnd);
+    };
+  }, [vapi, navigate]);
+
+  // Timer logic
   useEffect(() => {
     if (isConnected) {
       setTimer(0);
@@ -59,14 +90,12 @@ const ProductPage = () => {
 
   const handleNegotiate = () => {
     if (selectedItems.length === 0) return;
-    // backend logic ke hisaab se full objects bhej rahe hain
     startVictorCall(selectedItems, user);
     setIsCartOpen(false);
   };
 
   return (
     <div className="min-h-screen bg-[#070707] text-white font-sans selection:bg-blue-500/30">
-      {/* 2. Global Navbar */}
       <Navbar
         user={user}
         authLoading={authLoading}
@@ -74,9 +103,7 @@ const ProductPage = () => {
         setIsCartOpen={setIsCartOpen}
       />
 
-      {/* --- MAIN CONTENT (pt-32 for navbar spacing) --- */}
       <div className="max-w-7xl mx-auto p-6 pt-32 pb-48">
-        {/* --- TITLE SECTION --- */}
         <div className="mb-12">
           <h2 className="text-4xl md:text-6xl font-black tracking-tighter uppercase italic">
             Fresh <span className="text-blue-600">Drops</span>
@@ -86,7 +113,6 @@ const ProductPage = () => {
           </p>
         </div>
 
-        {/* --- PRODUCT GRID --- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {products.map((product) => {
             const isSelected = selectedItems.find((i) => i._id === product._id);
@@ -128,7 +154,7 @@ const ProductPage = () => {
         </div>
       </div>
 
-      {/* --- CART DROPDOWN (Now separate from header) --- */}
+      {/* --- CART DROPDOWN --- */}
       {isCartOpen && (
         <div className="fixed top-24 right-10 w-96 bg-[#111]/90 border border-white/10 rounded-[2.5rem] shadow-[0_25px_80px_rgba(0,0,0,0.8)] z-110 overflow-hidden backdrop-blur-xl">
           <div className="p-6 border-b border-white/5 flex justify-between items-center bg-zinc-900/30">
@@ -156,11 +182,12 @@ const ProductPage = () => {
                       </td>
                       <td className="p-5 text-right">
                         <button
-                          onClick={() =>
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSelectedItems(
                               selectedItems.filter((i) => i._id !== item._id),
-                            )
-                          }
+                            );
+                          }}
                           className="text-zinc-600 hover:text-red-500"
                         >
                           <HiOutlineTrash className="text-xl" />
@@ -199,7 +226,7 @@ const ProductPage = () => {
         </div>
       )}
 
-      {/* --- FLOATING INTERACTION BAR (Alex UI) --- */}
+      {/* --- FLOATING INTERACTION BAR --- */}
       <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-lg px-6 z-120">
         {isConnected ? (
           <div className="bg-white text-black p-8 rounded-[3.5rem] shadow-2xl flex flex-col gap-6 animate-in slide-in-from-bottom-24">
@@ -219,7 +246,6 @@ const ProductPage = () => {
                 {formatTime(timer)}
               </p>
             </div>
-            {/* Visualizer bars... */}
             <button
               onClick={() => vapi?.stop()}
               className="w-full py-5 bg-black text-white font-black uppercase rounded-4xl hover:bg-zinc-800 transition-all active:scale-95 flex items-center justify-center gap-3"

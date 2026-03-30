@@ -50,37 +50,49 @@ export const handleVapiWebhook = async (req, res) => {
     try {
         const { message } = req.body;
 
+        // Vapi sends 'tool-calls' when Alex triggers the function
         if (message?.type === 'tool-calls') {
-            const toolCall = message.toolCalls[0];
+            // Hum multiple tool calls handle kar sakte hain
+            const results = await Promise.all(message.toolCalls.map(async (toolCall) => {
+                if (toolCall.function.name === 'confirmDeal') {
+                    const { finalPrice, items } = toolCall.function.arguments;
 
-            if (toolCall.function.name === 'confirmDeal') {
-                const { finalPrice, items } = toolCall.function.arguments;
-                const vars = message.call?.variables || {};
+                    // Call variables se data nikalna
+                    const vars = message.call?.variables || {};
+                    const msrp = vars.raw_msrp || 0;
+                    const floor = vars.raw_floor || 0;
 
-                const msrp = vars.raw_msrp || 0;
-                const floor = vars.raw_floor || 0;
-                const efficiency = ((msrp - finalPrice) / (msrp - floor)) * 100;
+                    // Efficiency Score: 100 means they got the floor price (Best Negotiator)
+                    // 0 means they paid full MSRP.
+                    let efficiency = 0;
+                    if (msrp !== floor) {
+                        efficiency = ((msrp - finalPrice) / (msrp - floor)) * 100;
+                    }
 
-                await negotiationModel.create({
-                    userId: vars.userId,
-                    username: vars.username,
-                    items: items,
-                    totalMsrp: msrp,
-                    finalPrice: Number(finalPrice),
-                    floorPrice: floor,
-                    efficiencyScore: efficiency.toFixed(2)
-                });
+                    // Save to MongoDB
+                    await negotiationModel.create({
+                        userId: vars.userId || "anonymous",
+                        username: vars.username || "Guest",
+                        items: items || vars.items_in_basket,
+                        totalMsrp: msrp,
+                        finalPrice: Number(finalPrice),
+                        floorPrice: floor,
+                        efficiencyScore: Math.min(Math.max(efficiency, 0), 100).toFixed(2) // Limit 0-100
+                    });
 
-                return res.status(201).json({
-                    results: [{ toolCallId: toolCall.id, result: "Deal Recorded!" }]
-                });
-            }
+                    console.log(`✅ Deal Saved for ${vars.username}: ₹${finalPrice}`);
+                    return { toolCallId: toolCall.id, result: "Deal Recorded on Leaderboard!" };
+                }
+                return { toolCallId: toolCall.id, result: "Tool not recognized" };
+            }));
+
+            return res.status(201).json({ results });
         }
 
         return res.status(200).json({ status: "received" });
 
     } catch (error) {
-        console.error("Webhook error:", error);
+        console.error("❌ Webhook error:", error);
         res.status(500).json({ error: "Webhook Failed" });
     }
 };
