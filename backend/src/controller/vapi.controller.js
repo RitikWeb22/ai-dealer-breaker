@@ -39,22 +39,32 @@ export const handleVapiWebhook = async (req, res) => {
                     let args = toolCall.function.arguments;
                     if (typeof args === 'string') args = JSON.parse(args);
 
-                    // 🛠️ Variables extraction from Call Context
-                    const vars = message.call?.variables || message.variables || {};
+                    // ✅ FIXED: Vapi variables sahi path se nikaal rahe hain
+                    // Primary: assistantOverrides.variableValues (jahan humne bheje the)
+                    // Fallback chain bhi rakha hai safety ke liye
+                    const vars =
+                        message.call?.assistantOverrides?.variableValues ||
+                        message.call?.variables ||
+                        message.variables ||
+                        {};
+
+                    // 🔍 DEBUG LOG — confirm hone ke baad hata dena
+                    console.log("🔍 [VARS DEBUG] Extracted vars:", JSON.stringify(vars, null, 2));
+                    console.log("🔍 [CALL DEBUG] Full call keys:", Object.keys(message.call || {}));
 
                     const msrp = Number(vars.raw_msrp) || 0;
                     const floor = Number(vars.raw_floor) || (msrp * 0.75);
                     const finalPriceNum = Number(args.finalPrice || args.price) || 0;
 
-                    // 🚨 userId FIX: 'anonymous' string ko null set karenge taaki Schema accept kare
-                    const rawUserId = args.userId || vars.userId;
+                    // userId: valid ObjectId toh use karo, warna null
+                    const rawUserId = vars.userId || args.userId;
                     const dbUserId = (rawUserId && mongoose.Types.ObjectId.isValid(rawUserId))
                         ? rawUserId
                         : null;
 
                     const dbUsername = vars.username || "Guest Shark";
 
-                    // 📉 Efficiency Score Logic
+                    // Efficiency Score
                     let efficiency = 0;
                     const maxSavings = msrp - floor;
                     const userSavings = msrp - finalPriceNum;
@@ -64,9 +74,11 @@ export const handleVapiWebhook = async (req, res) => {
                     const finalEfficiency = Math.min(Math.max(efficiency, 0), 100);
 
                     const negotiationData = {
-                        userId: dbUserId, // null if anonymous, valid ID if logged in
+                        userId: dbUserId,
                         username: dbUsername,
-                        items: vars.items_in_basket ? vars.items_in_basket.split(", ") : ["Negotiated Items"],
+                        items: vars.items_in_basket
+                            ? vars.items_in_basket.split(", ")
+                            : ["Negotiated Items"],
                         totalMsrp: msrp,
                         finalPrice: finalPriceNum,
                         floorPrice: floor,
@@ -75,19 +87,19 @@ export const handleVapiWebhook = async (req, res) => {
                         callId: message.call?.id || toolCall.id
                     };
 
+                    console.log("💾 [SAVING]:", JSON.stringify(negotiationData, null, 2));
+
                     try {
-                        // 💾 Upsert to DB: callId unique constraint ka fayda uthayenge
                         await negotiationModel.findOneAndUpdate(
                             { callId: negotiationData.callId },
                             negotiationData,
                             { upsert: true, new: true }
                         );
-                        console.log(`✅ [DB SAVE]: ${dbUsername} saved!`);
+                        console.log(`✅ [DB SAVE SUCCESS]: ${dbUsername} | MSRP: ${msrp} | Final: ${finalPriceNum}`);
                     } catch (dbErr) {
                         console.error("❌ [DB SAVE ERROR]:", dbErr.message);
                     }
 
-                    // 🔌 This result goes back to AI to let it know the tool worked
                     return {
                         toolCallId: toolCall.id,
                         result: `Deal successfully recorded for ${dbUsername}. You can now end the call.`
@@ -96,7 +108,6 @@ export const handleVapiWebhook = async (req, res) => {
                 return { toolCallId: toolCall.id, result: "Processed" };
             }));
 
-            // ⚡ 201 Status + Results are CRITICAL for Vapi
             return res.status(201).json({ results });
         }
 
