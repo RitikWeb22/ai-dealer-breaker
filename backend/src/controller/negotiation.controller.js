@@ -11,33 +11,32 @@ export const createNegotiation = async (req, res) => {
         if (message?.type === 'tool-calls') {
             const toolCalls = message.toolCalls || [];
 
-            // 1. Map through tool calls and WAIT for DB operations
             const results = await Promise.all(toolCalls.map(async (toolCall) => {
                 if (toolCall.function?.name === "confirmDeal") {
 
-                    // Arguments Parsing
                     let args = toolCall.function.arguments;
                     if (typeof args === 'string') {
                         try { args = JSON.parse(args); } catch { args = {}; }
                     }
 
+                    // Extract price - 0 means No Deal (CASE 2)
                     const finalPriceNum = Number(args.finalPrice || args.price) || 0;
+                    const isDealBroken = finalPriceNum <= 0;
 
-                    // 2. Robust Variables Extraction
-                    // Tool calls mein variables aksar 'message.variables' mein hote hain
                     const vars = message.variables || message.call?.variables || {};
-
                     const totalMsrp = Number(vars.raw_msrp) || 0;
                     const floorLimit = Number(vars.raw_floor) || Math.round(totalMsrp * 0.75);
 
-                    // 3. Efficiency Calculation
-                    const possibleSavings = totalMsrp - floorLimit;
-                    const actualSavings = totalMsrp - finalPriceNum;
-                    let efficiency = possibleSavings <= 0 ? 100 : (actualSavings / possibleSavings) * 100;
+                    // Efficiency: If deal broken, efficiency is 0
+                    let efficiency = 0;
+                    if (!isDealBroken) {
+                        const possibleSavings = totalMsrp - floorLimit;
+                        const actualSavings = totalMsrp - finalPriceNum;
+                        efficiency = possibleSavings <= 0 ? 100 : (actualSavings / possibleSavings) * 100;
+                    }
                     const finalEfficiency = Number(Math.min(Math.max(efficiency, 0), 100).toFixed(2));
 
-                    // 4. Identity Handling
-                    const currentCallId = message.call?.id || toolCall.id || `call-${Date.now()}`;
+                    const currentCallId = message.call?.id || toolCall.id;
 
                     const updateData = {
                         userId: vars.userId || "anonymous",
@@ -47,25 +46,27 @@ export const createNegotiation = async (req, res) => {
                         finalPrice: finalPriceNum,
                         floorPrice: floorLimit,
                         efficiencyScore: finalEfficiency,
-                        status: "completed",
+                        status: isDealBroken ? "failed" : "completed", // ✅ 0 price pe 'failed' save hoga
                         callId: currentCallId
                     };
 
                     try {
-                        // 5. AWAIT the Database Save (Don't use .then here)
-                        const savedDoc = await negotiationModel.findOneAndUpdate(
+                        await negotiationModel.findOneAndUpdate(
                             { callId: currentCallId },
                             updateData,
                             { upsert: true, new: true, setDefaultsOnInsert: true }
                         );
-                        console.log("✅ [DB SAVE SUCCESS]:", savedDoc._id);
+                        console.log(`✅ [DB ${isDealBroken ? 'FAILED' : 'SUCCESS'}]:`, currentCallId);
                     } catch (dbErr) {
                         console.error("❌ [DB SAVE ERROR]:", dbErr.message);
                     }
 
                     return {
                         toolCallId: toolCall.id,
-                        result: `Deal confirmed at ₹${finalPriceNum}. Thank you!`
+                        result: isDealBroken
+                            ? "Negotiation failed. Ending call."
+                            : `Deal confirmed at ₹${finalPriceNum}. Ending call.`,
+                        endCall: true // ✨ Agent ke tool hit karte hi call disconnect ho jayegi
                     };
                 }
                 return { toolCallId: toolCall.id, result: "Tool processed" };
@@ -74,11 +75,29 @@ export const createNegotiation = async (req, res) => {
             return res.status(201).json({ results });
         }
 
+        // --- Handle Disconnect via end-of-call-report (Fail-safe) ---
+        if (message?.type === 'end-of-call-report') {
+            const callId = message.call?.id;
+            const existing = await negotiationModel.findOne({ callId });
+
+            // Agar agent ne bina tool hit kiye call kaat di (rare) toh 'failed' entry create karo
+            if (!existing) {
+                const vars = message.call?.variables || {};
+                await negotiationModel.create({
+                    callId,
+                    username: vars.username || "Guest Shark",
+                    status: "failed",
+                    totalMsrp: Number(vars.raw_msrp) || 0,
+                    efficiencyScore: 0
+                });
+            }
+        }
+
         return res.status(200).json({ status: 'received' });
 
     } catch (err) {
         console.error("❌ [WEBHOOK CRITICAL FAIL]:", err);
-        return res.status(201).json({ results: [] });
+        return res.status(200).json({ error: "Fail-safe triggered" });
     }
 };
 export const startVapiSession = async (req, res) => {
