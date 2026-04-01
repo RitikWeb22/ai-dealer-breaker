@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Vapi from "@vapi-ai/web";
 import { getNegotiationSession } from '../services/negotiation.api';
-import { useNegotiationContext } from '../negotiation.context';
+import { useNegotiationContext } from './useNegotiationContext';
 
 const vapi = new Vapi(import.meta.env.VITE_VAPI_PUBLIC_KEY);
 

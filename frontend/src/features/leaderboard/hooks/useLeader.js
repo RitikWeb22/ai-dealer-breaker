@@ -1,6 +1,6 @@
 import { useContext } from "react";
 
-import { LeaderboardContext } from "../leader.context";
+import { LeaderboardContext } from "../leader.context.value";
 
 export const useLeader = () => {
     const context = useContext(LeaderboardContext);

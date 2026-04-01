@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import compression from 'compression';
 
 // Route Imports
 import authRouter from './routes/user.route.js';
@@ -11,17 +13,28 @@ import vapiRouter from './routes/vapi.route.js';
 const app = express();
 
 // --- 1. Global Middleware ---
-app.use(express.json());
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(helmet());
+app.use(compression());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 app.use(express.static('public'));
 
 // --- 2. Robust CORS Configuration ---
-const allowedOrigins = [
+const defaultOrigins = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    'https://ai-dealer-breaker.onrender.com',
-    'https://ai-dealer-breaker.onrender.com/' // Added trailing slash version for safety
+    'https://ai-dealer-breaker.onrender.com'
 ];
+
+const envOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
 
 app.use(cors({
     origin: function (origin, callback) {
@@ -30,13 +43,24 @@ app.use(cors({
         if (allowedOrigins.map(o => o.replace(/\/$/, "")).includes(cleanOrigin)) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            const corsError = new Error('Not allowed by CORS');
+            corsError.statusCode = 403;
+            callback(corsError);
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], // OPTIONS yahan included hai
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
 }));
+
+app.get('/api/health', (req, res) => {
+    res.status(200).json({
+        success: true,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+    });
+});
 
 
 
@@ -48,7 +72,11 @@ app.use("/api/product", productRouter);
 // --- 4. Global Error Handler ---
 app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500;
-    const message = err.message || 'Internal Server Error';
+    const message =
+        process.env.NODE_ENV === 'production' && statusCode === 500
+            ? 'Internal Server Error'
+            : err.message || 'Internal Server Error';
+
     return res.status(statusCode).json({
         success: false,
         statusCode,

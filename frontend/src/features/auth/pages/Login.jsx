@@ -14,7 +14,7 @@ const Login = () => {
       // Wait for login to be successful
       await handleLogin({ email, password });
       navigate("/products");
-    } catch (err) {
+    } catch {
       // Error handling (context already logs this, but you can add a toast here)
       console.error("Login trigger failed");
     }

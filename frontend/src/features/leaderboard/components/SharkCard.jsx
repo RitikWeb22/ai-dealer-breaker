@@ -9,6 +9,7 @@ const Leaderboard = () => {
   const { user, authLoading } = useAuth();
   const [sharks, setSharks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const MotionTableRow = motion.tr;
 
   // Helper to get shark title based on efficiency
   const getSharkTitle = (score) => {
@@ -44,9 +45,9 @@ const Leaderboard = () => {
       <div className="max-w-6xl mx-auto pt-32 p-6 md:p-10">
         {/* --- TABLE SECTION --- */}
         <div className="overflow-x-auto mt-18 rounded-[2.5rem] border border-white/5 bg-zinc-900/10 backdrop-blur-md shadow-2xl">
-          <table className="w-full text-left border-collapse min-w-[700px]">
+          <table className="w-full text-left border-collapse min-w-175">
             <thead>
-              <tr className="bg-white/[0.02] text-zinc-500 uppercase text-[10px] font-black tracking-[0.2em]">
+              <tr className="bg-white/2 text-zinc-500 uppercase text-[10px] font-black tracking-[0.2em]">
                 <th className="px-8 py-7">Rank</th>
                 <th className="px-8 py-7">Negotiator</th>
                 <th className="px-8 py-7">Items Scored</th>
@@ -68,12 +69,12 @@ const Leaderboard = () => {
                   {sharks.map((shark, index) => {
                     const title = getSharkTitle(shark.efficiencyScore);
                     return (
-                      <motion.tr
+                      <MotionTableRow
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.08 }}
                         key={shark._id || index}
-                        className="group hover:bg-white/[0.04] transition-all cursor-default"
+                        className="group hover:bg-white/4 transition-all cursor-default"
                       >
                         <td className="px-8 py-6">
                           {index < 3 ? (
@@ -81,7 +82,7 @@ const Leaderboard = () => {
                               className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shadow-2xl relative
                               ${
                                 index === 0
-                                  ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-black ring-4 ring-yellow-500/20"
+                                  ? "bg-linear-to-br from-yellow-400 to-orange-500 text-black ring-4 ring-yellow-500/20"
                                   : index === 1
                                     ? "bg-zinc-300 text-black ring-4 ring-zinc-300/10"
                                     : "bg-orange-700 text-white ring-4 ring-orange-700/10"
@@ -102,7 +103,7 @@ const Leaderboard = () => {
                         </td>
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-zinc-800 to-zinc-900 border border-white/10 flex items-center justify-center text-blue-500 font-black text-xl group-hover:scale-110 transition-transform">
+                            <div className="w-12 h-12 rounded-2xl bg-linear-to-tr from-zinc-800 to-zinc-900 border border-white/10 flex items-center justify-center text-blue-500 font-black text-xl group-hover:scale-110 transition-transform">
                               {shark.username?.charAt(0).toUpperCase()}
                             </div>
                             <div className="flex flex-col">
@@ -156,7 +157,7 @@ const Leaderboard = () => {
                             </div>
                           </div>
                         </td>
-                      </motion.tr>
+                      </MotionTableRow>
                     );
                   })}
                 </AnimatePresence>

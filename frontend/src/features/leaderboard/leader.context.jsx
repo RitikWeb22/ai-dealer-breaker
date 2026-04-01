@@ -1,6 +1,4 @@
-import { createContext } from "react";
-
-export const LeaderboardContext = createContext();
+import { LeaderboardContext } from "./leader.context.value";
 
 export const LeaderboardProvider = ({ children }) => {
   return (

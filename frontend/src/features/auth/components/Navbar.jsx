@@ -11,6 +11,7 @@ import {
 const Navbar = ({ user, authLoading, cartCount, setIsCartOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const MotionDiv = motion.div;
 
   const navItems = [
     { name: "Products", path: "/products", icon: <HiOutlineShoppingBag /> },
@@ -46,7 +47,7 @@ const Navbar = ({ user, authLoading, cartCount, setIsCartOpen }) => {
                 <span className="text-lg">{item.icon}</span>
                 {item.name}
                 {isActive && (
-                  <motion.div
+                  <MotionDiv
                     layoutId="activeTab"
                     className="absolute inset-0 bg-blue-600 rounded-full -z-10 shadow-[0_0_20px_rgba(37,99,235,0.4)]"
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
