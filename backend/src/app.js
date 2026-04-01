@@ -15,7 +15,32 @@ const app = express();
 // --- 1. Global Middleware ---
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
-app.use(helmet());
+app.use(
+    helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                imgSrc: [
+                    "'self'",
+                    'data:',
+                    'https://images.unsplash.com',
+                    'https://i.pinimg.com',
+                ],
+                connectSrc: [
+                    "'self'",
+                    'https://api.vapi.ai',
+                    'wss://api.vapi.ai',
+                    'https://*.vapi.ai',
+                    'wss://*.vapi.ai',
+                    'https://*.daily.co',
+                    'wss://*.daily.co',
+                ],
+                mediaSrc: ["'self'", 'blob:'],
+            },
+        },
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+);
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
