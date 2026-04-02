@@ -64,9 +64,8 @@ export const createNegotiation = async (req, res) => {
                     return {
                         toolCallId: toolCall.id,
                         result: isDealBroken
-                            ? "Negotiation failed. Ending call."
-                            : `Deal confirmed at ₹${finalPriceNum}. Ending call.`,
-                        endCall: true // ✨ Agent ke tool hit karte hi call disconnect ho jayegi
+                            ? "Negotiation failed. Keep the conversation polite and close naturally."
+                            : `Deal confirmed at ₹${finalPriceNum}. Continue the conversation naturally and close politely.`
                     };
                 }
                 return { toolCallId: toolCall.id, result: "Tool processed" };

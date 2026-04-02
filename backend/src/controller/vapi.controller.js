@@ -102,8 +102,7 @@ export const handleVapiWebhook = async (req, res) => {
 
                     return {
                         toolCallId: toolCall.id,
-                        result: `Deal successfully recorded for ${dbUsername}. You can now end the call.`,
-                        endCall: true // ✨ Ye line call disconnect karegi
+                        result: `Deal successfully recorded for ${dbUsername}. Continue the conversation naturally and wrap up politely.`
                     };
                 }
                 return { toolCallId: toolCall.id, result: "Processed" };
