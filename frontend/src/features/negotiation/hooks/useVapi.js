@@ -12,12 +12,22 @@ export const useNegotiation = () => {
     const navigate = useNavigate();
     const hasProcessedDeal = useRef(false);
     const stopTimerRef = useRef(null); // Timer ref track karne ke liye
+    const retryCountRef = useRef(0);
+    const lastCallPayloadRef = useRef(null);
+
+    const startWithPayload = useCallback(async (payload, isRetry = false) => {
+        await vapi.start(import.meta.env.VITE_VAPI_ASSISTANT_ID, payload);
+        if (!isRetry) {
+            retryCountRef.current = 0;
+        }
+    }, []);
 
     useEffect(() => {
         const onCallStart = () => {
             console.log("📞 Negotiation Started");
             setIsCallActive(true);
             hasProcessedDeal.current = false;
+            retryCountRef.current = 0;
         };
 
         const onCallEnd = () => {
@@ -59,6 +69,24 @@ export const useNegotiation = () => {
         const onError = (e) => {
             console.error("❌ Vapi Error:", JSON.stringify(e));
 
+            const isNoRoomError =
+                e?.type === 'daily-error' &&
+                (e?.error?.error?.type === 'no-room' || e?.error?.message?.type === 'no-room');
+
+            if (isNoRoomError && !hasProcessedDeal.current && retryCountRef.current < 1 && lastCallPayloadRef.current) {
+                retryCountRef.current += 1;
+                console.warn('♻️ Room expired/deleted. Retrying call once...');
+
+                setTimeout(async () => {
+                    try {
+                        await startWithPayload(lastCallPayloadRef.current, true);
+                    } catch (retryError) {
+                        console.error('❌ Retry failed:', retryError.message);
+                    }
+                }, 1200);
+                return;
+            }
+
             // 🔑 KEY FIX: Daily-error ya koi bhi error aaye,
             // agar deal ho chuki thi toh leaderboard pe bhejo
             if (hasProcessedDeal.current) {
@@ -80,7 +108,7 @@ export const useNegotiation = () => {
             if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
             vapi.removeAllListeners();
         };
-    }, [setIsCallActive, navigate]);
+    }, [setIsCallActive, navigate, startWithPayload]);
 
     const startVictorCall = useCallback(async (basketItems, user) => {
         if (loading || isCallActive) return;
@@ -105,8 +133,10 @@ export const useNegotiation = () => {
                 }
             };
 
+            lastCallPayloadRef.current = assistantOverrides;
+
             console.log("🚀 Starting Call:", assistantOverrides.variableValues);
-            await vapi.start(import.meta.env.VITE_VAPI_ASSISTANT_ID, assistantOverrides);
+            await startWithPayload(assistantOverrides);
 
         } catch (error) {
             console.error("❌ Connection Error:", error.message);
@@ -115,7 +145,7 @@ export const useNegotiation = () => {
         } finally {
             setLoading(false);
         }
-    }, [isCallActive, loading, setIsCallActive]);
+    }, [isCallActive, loading, setIsCallActive, startWithPayload]);
 
     return {
         startVictorCall,
