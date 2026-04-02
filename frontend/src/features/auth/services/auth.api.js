@@ -5,17 +5,37 @@ const api = axios.create({
     withCredentials: true, // Include cookies for authentication
 });
 
+const extractApiErrorMessage = (error, fallbackMessage) => {
+    const responseData = error?.response?.data;
+
+    if (Array.isArray(responseData?.errors) && responseData.errors.length > 0) {
+        return responseData.errors[0].msg || fallbackMessage;
+    }
+
+    return responseData?.message || fallbackMessage;
+};
+
 
 // register a new user
 export const register = async ({ username, email, password }) => {
-    const response = await api.post('/register', { username, email, password });
-    return response.data;
+    try {
+        const response = await api.post('/register', { username, email, password });
+        return response.data;
+    } catch (error) {
+        const message = extractApiErrorMessage(error, 'Registration failed');
+        throw new Error(message);
+    }
 }
 
 // login a user
 export const login = async ({ email, password }) => {
-    const response = await api.post('/login', { email, password });
-    return response.data;
+    try {
+        const response = await api.post('/login', { email, password });
+        return response.data;
+    } catch (error) {
+        const message = extractApiErrorMessage(error, 'Login failed');
+        throw new Error(message);
+    }
 }
 
 // profile of the logged in user

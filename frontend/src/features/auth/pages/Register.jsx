@@ -6,11 +6,14 @@ const Register = () => {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const { handleRegister, loading } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage("");
+
     try {
       // Wait for registration to complete
       await handleRegister({ username, email, password });
@@ -18,6 +21,7 @@ const Register = () => {
       navigate("/products");
     } catch (err) {
       console.error("Registration failed", err);
+      setErrorMessage(err.message || "Registration failed. Please try again.");
     }
   };
 
@@ -50,6 +54,12 @@ const Register = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {errorMessage && (
+            <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {errorMessage}
+            </div>
+          )}
+
           {/* Username Field */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 ml-2">
@@ -61,6 +71,7 @@ const Register = () => {
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-5 py-4 rounded-2xl bg-[#1e1e1e] border border-white/5 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-300 placeholder-gray-600 shadow-inner"
               placeholder="Enter your name"
+              minLength={3}
               required
             />
           </div>
@@ -91,6 +102,7 @@ const Register = () => {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-5 py-4 rounded-2xl bg-[#1e1e1e] border border-white/5 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-300 placeholder-gray-600 shadow-inner"
               placeholder="••••••••"
+              minLength={6}
               required
             />
           </div>
