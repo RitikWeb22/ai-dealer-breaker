@@ -20,13 +20,15 @@ app.use(
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-eval'", 'https://c.daily.co'],
+                scriptSrc: ["'self'", "'unsafe-eval'", 'https://c.daily.co', 'blob:'],
+                scriptSrcElem: ["'self'", 'https://c.daily.co', 'blob:'],
                 imgSrc: [
                     "'self'",
                     'data:',
                     'https://images.unsplash.com',
                     'https://i.pinimg.com',
                 ],
+                workerSrc: ["'self'", 'blob:', 'https://c.daily.co'],
                 connectSrc: [
                     "'self'",
                     'https://api.vapi.ai',

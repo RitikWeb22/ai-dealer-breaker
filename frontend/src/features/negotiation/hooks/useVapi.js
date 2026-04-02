@@ -127,9 +127,13 @@ export const useNegotiation = () => {
                 e?.type === 'daily-error' &&
                 (e?.error?.error?.type === 'no-room' || e?.error?.message?.type === 'no-room');
 
-            if (isNoRoomError && !hasProcessedDeal.current && retryCountRef.current < 1 && lastCallPayloadRef.current) {
+            const isEjectedError =
+                e?.type === 'daily-error' &&
+                (e?.error?.error?.type === 'ejected' || e?.error?.message?.type === 'ejected');
+
+            if ((isNoRoomError || isEjectedError) && !hasProcessedDeal.current && retryCountRef.current < 1 && lastCallPayloadRef.current) {
                 retryCountRef.current += 1;
-                console.warn('♻️ Room expired/deleted. Retrying call once...');
+                console.warn('♻️ Call room expired/ejected. Retrying call once...');
 
                 setTimeout(async () => {
                     try {
@@ -163,6 +167,22 @@ export const useNegotiation = () => {
             vapi.removeAllListeners();
         };
     }, [setIsCallActive, navigate, startWithPayload]);
+
+    const stopCall = useCallback(async () => {
+        try {
+            await vapi.stop();
+        } catch (stopError) {
+            console.warn('⚠️ Soft stop failed, trying hard end...', stopError?.message || stopError);
+            try {
+                vapi.end();
+            } catch (endError) {
+                console.error('❌ Hard end failed:', endError?.message || endError);
+            }
+        } finally {
+            setIsCallActive(false);
+            setLoading(false);
+        }
+    }, [setIsCallActive]);
 
     const startVictorCall = useCallback(async (basketItems, user) => {
         if (loading || isCallActive) return;
@@ -205,7 +225,7 @@ export const useNegotiation = () => {
         startVictorCall,
         loading,
         isConnected: isCallActive,
-        stopCall: () => vapi.stop(),
+        stopCall,
         vapi
     };
 };

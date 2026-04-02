@@ -33,6 +33,7 @@ export async function register(req, res) {
         status: 'success',
         message: 'User created successfully',
         user: {
+            _id: user._id,
             username: user.username,
             email: user.email,
         },
@@ -60,6 +61,7 @@ export async function login(req, res) {
         status: 'success',
         message: 'User logged in successfully',
         user: {
+            _id: user._id,
             username: user.username,
             email: user.email,
         },
@@ -78,6 +80,7 @@ export async function getProfile(req, res) {
         status: 'success',
         message: 'User profile fetched successfully',
         user: {
+            _id: user._id,
             username: user.username,
             email: user.email,
         },

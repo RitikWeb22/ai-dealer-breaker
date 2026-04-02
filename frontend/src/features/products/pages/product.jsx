@@ -27,6 +27,7 @@ const ProductPage = () => {
     startVictorCall,
     loading: vapiLoading,
     isConnected,
+    stopCall,
     vapi,
   } = useNegotiation();
 
@@ -332,7 +333,7 @@ const ProductPage = () => {
               </p>
             </div>
             <button
-              onClick={() => vapi?.stop()}
+              onClick={stopCall}
               className="w-full py-3.5 sm:py-5 bg-slate-950 text-white font-black uppercase rounded-4xl hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-3 text-xs sm:text-sm"
             >
               End Conversation
