@@ -27,13 +27,13 @@ const Register = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] px-4">
-        <div className="w-full max-w-md bg-[#141414] p-12 rounded-3xl border border-white/5 shadow-2xl text-center">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+      <div className="min-h-screen flex items-center justify-center px-4 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)]">
+        <div className="w-full max-w-md bg-[rgba(10,16,32,0.76)] p-12 rounded-3xl border border-white/10 shadow-[0_35px_100px_rgba(0,0,0,0.45)] text-center backdrop-blur-2xl">
+          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
           <h2 className="text-2xl font-bold text-white tracking-tight">
-            Setting up your <span className="text-blue-500">Profile</span>...
+            Setting up your <span className="text-emerald-400">Profile</span>...
           </h2>
-          <p className="text-gray-500 mt-2 text-sm italic">
+          <p className="text-slate-400 mt-2 text-sm italic">
             Getting things ready for the future of commerce.
           </p>
         </div>
@@ -42,67 +42,70 @@ const Register = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] px-4 selection:bg-blue-500/30">
-      <div className="w-full max-w-md bg-[#141414] p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center px-4 selection:bg-emerald-400/30 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.12),transparent_26%),linear-gradient(180deg,#050816_0%,#02050d_100%)]">
+      <div className="w-full max-w-md bg-[rgba(10,16,32,0.76)] p-8 rounded-[2.5rem] border border-white/10 shadow-[0_35px_100px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
         <div className="mb-8 text-center">
           <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic">
-            Join the <span className="text-blue-500">AI Dealer</span>
+            Join the <span className="text-emerald-400">AI Dealer</span>
           </h2>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-slate-400 text-sm mt-1">
             Experience the next generation of shopping.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {errorMessage && (
-            <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
               {errorMessage}
             </div>
           )}
 
           {/* Username Field */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 ml-2">
+            <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 ml-2">
               Full Name
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-5 py-4 rounded-2xl bg-[#1e1e1e] border border-white/5 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-300 placeholder-gray-600 shadow-inner"
+              className="w-full px-5 py-4 rounded-2xl bg-slate-950/80 border border-white/5 text-white focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all duration-300 placeholder-slate-600 shadow-inner"
               placeholder="Enter your name"
               minLength={3}
+              autoComplete="name"
               required
             />
           </div>
 
           {/* Email Field */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 ml-2">
+            <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 ml-2">
               Email Address
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-5 py-4 rounded-2xl bg-[#1e1e1e] border border-white/5 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-300 placeholder-gray-600 shadow-inner"
+              className="w-full px-5 py-4 rounded-2xl bg-slate-950/80 border border-white/5 text-white focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all duration-300 placeholder-slate-600 shadow-inner"
               placeholder="name@example.com"
+              autoComplete="email"
               required
             />
           </div>
 
           {/* Password Field */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 ml-2">
+            <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 ml-2">
               Password
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-5 py-4 rounded-2xl bg-[#1e1e1e] border border-white/5 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-300 placeholder-gray-600 shadow-inner"
+              className="w-full px-5 py-4 rounded-2xl bg-slate-950/80 border border-white/5 text-white focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all duration-300 placeholder-slate-600 shadow-inner"
               placeholder="••••••••"
               minLength={6}
+              autoComplete="new-password"
               required
             />
           </div>
@@ -110,17 +113,17 @@ const Register = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full mt-6 py-4 px-4 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest rounded-2xl transition-all duration-300 shadow-lg shadow-blue-900/40 active:scale-[0.96]"
+            className="w-full mt-6 py-4 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase tracking-widest rounded-2xl transition-all duration-300 shadow-lg shadow-emerald-900/30 active:scale-[0.96]"
           >
             Create Account
           </button>
         </form>
 
-        <p className="mt-8 text-center text-sm text-gray-500 font-medium">
+        <p className="mt-8 text-center text-sm text-slate-400 font-medium">
           Already have an account?{" "}
           <Link
             to="/login"
-            className="text-blue-500 hover:text-blue-400 underline underline-offset-4 transition-colors"
+            className="text-amber-400 hover:text-amber-300 underline underline-offset-4 transition-colors"
           >
             Log in
           </Link>

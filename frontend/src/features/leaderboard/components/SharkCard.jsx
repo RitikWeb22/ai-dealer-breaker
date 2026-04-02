@@ -14,7 +14,7 @@ const Leaderboard = () => {
   // Helper to get shark title based on efficiency
   const getSharkTitle = (score) => {
     if (score >= 90) return { label: "Savage Shark", color: "text-red-500" };
-    if (score >= 70) return { label: "Pro Hustler", color: "text-blue-400" };
+    if (score >= 70) return { label: "Pro Hustler", color: "text-emerald-300" };
     if (score >= 40) return { label: "Smart Dealer", color: "text-green-400" };
     return { label: "Rookie", color: "text-zinc-500" };
   };
@@ -39,15 +39,15 @@ const Leaderboard = () => {
   }, []);
 
   return (
-    <div className="bg-[#070707] min-h-screen text-white font-sans selection:bg-blue-500/30">
+    <div className="bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.14),transparent_30%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)] min-h-screen text-white font-sans selection:bg-emerald-400/30">
       <Navbar user={user} authLoading={authLoading} cartCount={0} />
 
       <div className="max-w-6xl mx-auto pt-32 p-6 md:p-10">
         {/* --- TABLE SECTION --- */}
-        <div className="overflow-x-auto mt-18 rounded-[2.5rem] border border-white/5 bg-zinc-900/10 backdrop-blur-md shadow-2xl">
+        <div className="overflow-x-auto mt-18 rounded-[2.5rem] border border-white/5 bg-slate-950/20 backdrop-blur-md shadow-2xl">
           <table className="w-full text-left border-collapse min-w-175">
             <thead>
-              <tr className="bg-white/2 text-zinc-500 uppercase text-[10px] font-black tracking-[0.2em]">
+              <tr className="bg-white/2 text-slate-400 uppercase text-[10px] font-black tracking-[0.2em]">
                 <th className="px-8 py-7">Rank</th>
                 <th className="px-8 py-7">Negotiator</th>
                 <th className="px-8 py-7">Items Scored</th>
@@ -96,18 +96,18 @@ const Leaderboard = () => {
                               )}
                             </div>
                           ) : (
-                            <span className="text-zinc-600 font-mono ml-4 text-sm font-bold">
+                            <span className="text-slate-500 font-mono ml-4 text-sm font-bold">
                               {index + 1}
                             </span>
                           )}
                         </td>
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-linear-to-tr from-zinc-800 to-zinc-900 border border-white/10 flex items-center justify-center text-blue-500 font-black text-xl group-hover:scale-110 transition-transform">
+                            <div className="w-12 h-12 rounded-2xl bg-linear-to-tr from-slate-900 to-slate-950 border border-white/10 flex items-center justify-center text-emerald-400 font-black text-xl group-hover:scale-110 transition-transform">
                               {shark.username?.charAt(0).toUpperCase()}
                             </div>
                             <div className="flex flex-col">
-                              <span className="font-bold text-zinc-100 group-hover:text-blue-400 transition-colors capitalize text-lg">
+                              <span className="font-bold text-zinc-100 group-hover:text-emerald-300 transition-colors capitalize text-lg">
                                 {shark.username}
                               </span>
                               <span
@@ -124,18 +124,18 @@ const Leaderboard = () => {
                               shark.items.slice(0, 2).map((it, i) => (
                                 <span
                                   key={i}
-                                  className="text-[10px] bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-zinc-400 font-medium"
+                                  className="text-[10px] bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-slate-400 font-medium"
                                 >
                                   {it}
                                 </span>
                               ))
                             ) : (
-                              <span className="text-[10px] text-zinc-700 italic">
+                              <span className="text-[10px] text-slate-600 italic">
                                 No items score
                               </span>
                             )}
                             {shark.items?.length > 2 && (
-                              <span className="text-[10px] text-blue-600 font-black self-center px-2">
+                              <span className="text-[10px] text-emerald-400 font-black self-center px-2">
                                 +{shark.items.length - 2}
                               </span>
                             )}
@@ -145,14 +145,14 @@ const Leaderboard = () => {
                           <div className="flex flex-col items-end">
                             <div className="flex items-center gap-2">
                               {shark.efficiencyScore >= 80 && (
-                                <HiOutlineLightningBolt className="text-yellow-500 animate-pulse" />
+                                <HiOutlineLightningBolt className="text-amber-400 animate-pulse" />
                               )}
                               <span className="text-white font-black italic text-2xl tracking-tighter">
                                 {shark.efficiencyScore?.toFixed(1)}%
                               </span>
                             </div>
-                            <div className="flex items-center gap-1 text-[9px] font-black uppercase text-zinc-500 tracking-widest mt-1">
-                              <HiTrendingDown className="text-green-500 text-sm" />
+                            <div className="flex items-center gap-1 text-[9px] font-black uppercase text-slate-500 tracking-widest mt-1">
+                              <HiTrendingDown className="text-emerald-400 text-sm" />
                               Bargain Power
                             </div>
                           </div>
@@ -166,7 +166,7 @@ const Leaderboard = () => {
                   <td colSpan="4" className="p-32 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="text-5xl opacity-20">🌊</div>
-                      <span className="text-zinc-600 italic font-medium">
+                      <span className="text-slate-500 italic font-medium">
                         The tank is empty. No one has defeated Alex yet.
                       </span>
                     </div>

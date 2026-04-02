@@ -16,8 +16,8 @@ export const router = createBrowserRouter([
     element: (
       <Suspense
         fallback={
-          <div className="min-h-screen flex items-center justify-center bg-[#070707] text-zinc-200 text-sm tracking-wide">
-            Loading...
+          <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)] text-slate-200 text-sm font-semibold uppercase tracking-[0.3em]">
+            Loading experience...
           </div>
         }
       >
@@ -30,8 +30,8 @@ export const router = createBrowserRouter([
     element: (
       <Suspense
         fallback={
-          <div className="min-h-screen flex items-center justify-center bg-[#070707] text-zinc-200 text-sm tracking-wide">
-            Loading...
+          <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)] text-slate-200 text-sm font-semibold uppercase tracking-[0.3em]">
+            Loading experience...
           </div>
         }
       >
@@ -46,8 +46,8 @@ export const router = createBrowserRouter([
     element: (
       <Suspense
         fallback={
-          <div className="min-h-screen flex items-center justify-center bg-[#070707] text-zinc-200 text-sm tracking-wide">
-            Loading...
+          <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)] text-slate-200 text-sm font-semibold uppercase tracking-[0.3em]">
+            Loading experience...
           </div>
         }
       >
@@ -62,8 +62,8 @@ export const router = createBrowserRouter([
     element: (
       <Suspense
         fallback={
-          <div className="min-h-screen flex items-center justify-center bg-[#070707] text-zinc-200 text-sm tracking-wide">
-            Loading...
+          <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)] text-slate-200 text-sm font-semibold uppercase tracking-[0.3em]">
+            Loading experience...
           </div>
         }
       >
@@ -76,8 +76,8 @@ export const router = createBrowserRouter([
     element: (
       <Suspense
         fallback={
-          <div className="min-h-screen flex items-center justify-center bg-[#070707] text-zinc-200 text-sm tracking-wide">
-            Loading...
+          <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)] text-slate-200 text-sm font-semibold uppercase tracking-[0.3em]">
+            Loading experience...
           </div>
         }
       >

@@ -1,1 +1,72 @@
 @import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --page-bg: #050816;
+  --surface: rgba(10, 16, 32, 0.72);
+  --surface-strong: rgba(6, 10, 22, 0.88);
+  --border: rgba(148, 163, 184, 0.14);
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #2dd4bf;
+  --accent-2: #f59e0b;
+}
+
+html {
+  background: var(--page-bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(45, 212, 191, 0.16),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(245, 158, 11, 0.14),
+      transparent 26%
+    ),
+    linear-gradient(180deg, #050816 0%, #02050d 100%);
+  background-attachment: fixed;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(45, 212, 191, 0.28);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.85);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(45, 212, 191, 0.85),
+    rgba(245, 158, 11, 0.8)
+  );
+  border-radius: 999px;
+  border: 2px solid rgba(2, 6, 23, 0.85);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(45, 212, 191, 1),
+    rgba(245, 158, 11, 0.95)
+  );
+}
