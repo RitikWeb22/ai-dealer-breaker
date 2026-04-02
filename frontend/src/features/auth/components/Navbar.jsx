@@ -19,15 +19,15 @@ const Navbar = ({ user, authLoading, cartCount, setIsCartOpen }) => {
   ];
 
   return (
-    <nav className="fixed top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-5xl z-1000">
-      <div className="bg-slate-950/60 border border-white/10 backdrop-blur-2xl rounded-[2.5rem] p-3 px-6 flex justify-between items-center shadow-[0_25px_90px_rgba(0,0,0,0.45)]">
+    <nav className="fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-5xl z-1000">
+      <div className="bg-slate-950/60 border border-white/10 backdrop-blur-2xl rounded-[2.5rem] p-2.5 sm:p-3 px-3 sm:px-6 flex justify-between items-center shadow-[0_25px_90px_rgba(0,0,0,0.45)]">
         {/* --- LOGO --- */}
         <div
           className="flex items-center gap-2 cursor-pointer group"
           onClick={() => navigate("/products")}
         >
           <div className="w-2 h-8 bg-emerald-400 rounded-full group-hover:scale-y-110 transition-transform" />
-          <h1 className="text-lg font-black tracking-tighter uppercase italic text-white">
+          <h1 className="text-sm sm:text-lg font-black tracking-tighter uppercase italic text-white">
             Deal <span className="text-amber-400">Breaker</span>
           </h1>
         </div>
@@ -64,7 +64,7 @@ const Navbar = ({ user, authLoading, cartCount, setIsCartOpen }) => {
           {typeof setIsCartOpen === "function" && (
             <button
               onClick={() => setIsCartOpen(true)}
-              className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 relative transition-all active:scale-90"
+              className="p-2.5 sm:p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 relative transition-all active:scale-90"
             >
               <HiOutlineShoppingCart className="text-xl text-zinc-300" />
               {cartCount > 0 && (
@@ -76,13 +76,34 @@ const Navbar = ({ user, authLoading, cartCount, setIsCartOpen }) => {
           )}
 
           {/* User Profile */}
-          <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl border border-white/10 hover:border-emerald-400/30 transition-colors">
+          <div className="flex items-center gap-2 sm:gap-3 bg-white/5 px-2.5 sm:px-4 py-2 rounded-2xl border border-white/10 hover:border-emerald-400/30 transition-colors">
             <HiOutlineUserCircle className="text-2xl text-emerald-400" />
-            <span className="text-[10px] font-black tracking-widest uppercase text-emerald-100 hidden sm:block">
+            <span className="text-[10px] font-black tracking-widest uppercase text-emerald-100 hidden md:block">
               {authLoading ? "Syncing..." : user?.username || "Guest"}
             </span>
           </div>
         </div>
+      </div>
+
+      <div className="md:hidden mt-3 rounded-full bg-slate-950/60 border border-white/10 backdrop-blur-xl p-1.5 flex items-center justify-center gap-1.5 shadow-[0_14px_40px_rgba(0,0,0,0.35)]">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+
+          return (
+            <button
+              key={`mobile-${item.path}`}
+              onClick={() => navigate(item.path)}
+              className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-wide transition-colors flex items-center gap-1.5 ${
+                isActive
+                  ? "bg-emerald-500 text-slate-950"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              <span className="text-sm">{item.icon}</span>
+              {item.name}
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

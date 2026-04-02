@@ -14,6 +14,16 @@ export const useNegotiation = () => {
     const stopTimerRef = useRef(null); // Timer ref track karne ke liye
     const retryCountRef = useRef(0);
     const lastCallPayloadRef = useRef(null);
+    const lastAssistantLineRef = useRef('');
+    const assistantRepeatCountRef = useRef(0);
+    const antiLoopPingedRef = useRef(false);
+
+    const normalizeAssistantLine = (line = '') =>
+        String(line)
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
 
     const startWithPayload = useCallback(async (payload, isRetry = false) => {
         await vapi.start(import.meta.env.VITE_VAPI_ASSISTANT_ID, payload);
@@ -28,6 +38,9 @@ export const useNegotiation = () => {
             setIsCallActive(true);
             hasProcessedDeal.current = false;
             retryCountRef.current = 0;
+            lastAssistantLineRef.current = '';
+            assistantRepeatCountRef.current = 0;
+            antiLoopPingedRef.current = false;
         };
 
         const onCallEnd = () => {
@@ -42,6 +55,10 @@ export const useNegotiation = () => {
                 console.log("🏆 Navigating to Leaderboard...");
                 navigate("/leaderboard");
             }
+
+            lastAssistantLineRef.current = '';
+            assistantRepeatCountRef.current = 0;
+            antiLoopPingedRef.current = false;
         };
 
         const onMessage = (message) => {
@@ -62,6 +79,43 @@ export const useNegotiation = () => {
                         vapi.stop();
                         stopTimerRef.current = null;
                     }, 8000);
+                }
+            }
+
+            if (
+                message?.type === 'transcript' &&
+                message?.role === 'assistant' &&
+                message?.transcriptType === 'final' &&
+                !hasProcessedDeal.current
+            ) {
+                const normalized = normalizeAssistantLine(message.transcript);
+                if (normalized.length > 12) {
+                    if (normalized === lastAssistantLineRef.current) {
+                        assistantRepeatCountRef.current += 1;
+                    } else {
+                        assistantRepeatCountRef.current = 0;
+                    }
+
+                    lastAssistantLineRef.current = normalized;
+
+                    if (assistantRepeatCountRef.current >= 1 && !antiLoopPingedRef.current) {
+                        antiLoopPingedRef.current = true;
+                        console.warn('♻️ Repeated assistant prompt detected. Sending anti-loop hint...');
+
+                        vapi.send({
+                            type: 'add-message',
+                            message: {
+                                role: 'system',
+                                content:
+                                    'You are repeating yourself. Stop repeating previous question. Answer the user directly in one concise sentence, then ask only one clear next-step negotiation question.',
+                            },
+                            triggerResponseEnabled: true,
+                        });
+
+                        setTimeout(() => {
+                            antiLoopPingedRef.current = false;
+                        }, 5000);
+                    }
                 }
             }
         };
@@ -151,6 +205,7 @@ export const useNegotiation = () => {
         startVictorCall,
         loading,
         isConnected: isCallActive,
-        stopCall: () => vapi.stop()
+        stopCall: () => vapi.stop(),
+        vapi
     };
 };

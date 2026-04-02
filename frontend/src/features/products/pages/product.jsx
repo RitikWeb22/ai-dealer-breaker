@@ -20,6 +20,7 @@ const ProductPage = () => {
   const [timer, setTimer] = useState(0);
   const timerRef = useRef(null);
   const hasNavigated = useRef(false);
+  const surfaceRef = useRef(null);
 
   const { user, loading: authLoading } = useAuth();
   const {
@@ -156,8 +157,21 @@ const ProductPage = () => {
     setIsCartOpen(false);
   };
 
+  const handleMouseMove = (e) => {
+    if (!surfaceRef.current) return;
+    const rect = surfaceRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    surfaceRef.current.style.setProperty("--mx", `${x}px`);
+    surfaceRef.current.style.setProperty("--my", `${y}px`);
+  };
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.14),transparent_30%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)] text-white font-sans selection:bg-emerald-400/30">
+    <div
+      ref={surfaceRef}
+      onMouseMove={handleMouseMove}
+      className="mouse-glow-surface min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.14),transparent_30%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)] text-white font-sans selection:bg-emerald-400/30"
+    >
       <Navbar
         user={user}
         authLoading={authLoading}
@@ -165,17 +179,17 @@ const ProductPage = () => {
         setIsCartOpen={setIsCartOpen}
       />
 
-      <div className="max-w-7xl mx-auto p-6 pt-32 pb-48">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 pt-28 sm:pt-34 pb-40 sm:pb-48">
         <div className="mb-12">
-          <h2 className="text-4xl md:text-6xl font-black tracking-tighter uppercase italic">
+          <h2 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tighter uppercase italic">
             Fresh <span className="text-emerald-400">Drops</span>
           </h2>
-          <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-2">
+          <p className="text-slate-400 text-[11px] sm:text-sm font-bold uppercase tracking-widest mt-2">
             Select products to start your negotiation
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8">
           {/* ✅ Safe Render with Optional Chaining */}
           {products?.length > 0 ? (
             products.map((product) => {
@@ -227,7 +241,7 @@ const ProductPage = () => {
 
       {/* --- CART DROPDOWN --- */}
       {isCartOpen && (
-        <div className="fixed top-24 right-10 w-96 bg-slate-950/90 border border-white/10 rounded-[2.5rem] shadow-[0_25px_80px_rgba(0,0,0,0.8)] z-110 overflow-hidden backdrop-blur-xl">
+        <div className="fixed top-22 sm:top-24 left-3 right-3 sm:left-auto sm:right-10 w-auto sm:w-96 bg-slate-950/90 border border-white/10 rounded-4xl sm:rounded-[2.5rem] shadow-[0_25px_80px_rgba(0,0,0,0.8)] z-110 overflow-hidden backdrop-blur-xl">
           <div className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/30">
             <h2 className="font-black uppercase tracking-widest text-xs text-slate-400">
               Your Basket
@@ -298,10 +312,10 @@ const ProductPage = () => {
       )}
 
       {/* --- FLOATING INTERACTION BAR --- */}
-      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-lg px-6 z-120">
+      <div className="fixed bottom-5 sm:bottom-10 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 sm:px-6 z-120">
         {isConnected ? (
-          <div className="bg-slate-50 text-slate-950 p-8 rounded-[3.5rem] shadow-2xl flex flex-col gap-6 animate-in slide-in-from-bottom-24">
-            <div className="flex justify-between items-center px-4">
+          <div className="bg-slate-50 text-slate-950 p-5 sm:p-8 rounded-[2.4rem] sm:rounded-[3.5rem] shadow-2xl flex flex-col gap-4 sm:gap-6 animate-in slide-in-from-bottom-24">
+            <div className="flex justify-between items-center px-1 sm:px-4 gap-3">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <HiStatusOnline className="text-amber-500 animate-pulse" />
@@ -309,17 +323,17 @@ const ProductPage = () => {
                     Negotiating Live
                   </p>
                 </div>
-                <h4 className="text-lg font-black italic text-slate-800">
+                <h4 className="text-sm sm:text-lg font-black italic text-slate-800">
                   Alex is listening...
                 </h4>
               </div>
-              <p className="font-mono text-4xl font-black tabular-nums tracking-tighter">
+              <p className="font-mono text-2xl sm:text-4xl font-black tabular-nums tracking-tighter">
                 {formatTime(timer)}
               </p>
             </div>
             <button
               onClick={() => vapi?.stop()}
-              className="w-full py-5 bg-slate-950 text-white font-black uppercase rounded-4xl hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-3"
+              className="w-full py-3.5 sm:py-5 bg-slate-950 text-white font-black uppercase rounded-4xl hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-3 text-xs sm:text-sm"
             >
               End Conversation
             </button>
@@ -329,13 +343,13 @@ const ProductPage = () => {
             <button
               onClick={handleNegotiate}
               disabled={vapiLoading}
-              className="w-full group relative flex items-center justify-between p-3 pl-10 bg-emerald-500 rounded-[3.5rem] shadow-[0_25px_60px_rgba(45,212,191,0.35)] hover:bg-emerald-400 transition-all active:scale-95 overflow-hidden border border-emerald-300/20"
+              className="w-full group relative flex items-center justify-between p-2.5 sm:p-3 pl-5 sm:pl-10 bg-emerald-500 rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_25px_60px_rgba(45,212,191,0.35)] hover:bg-emerald-400 transition-all active:scale-95 overflow-hidden border border-emerald-300/20"
             >
-              <span className="font-black uppercase tracking-[0.3em] text-sm relative z-10 text-slate-950">
+              <span className="font-black uppercase tracking-[0.18em] sm:tracking-[0.3em] text-[11px] sm:text-sm relative z-10 text-slate-950">
                 {vapiLoading ? "Connecting AI..." : "Talk to Shopkeeper"}
               </span>
-              <div className="bg-white/20 p-5 rounded-full backdrop-blur-md group-hover:bg-white group-hover:text-emerald-600 transition-all relative z-10">
-                <HiOutlineChatAlt2 className="text-2xl" />
+              <div className="bg-white/20 p-3.5 sm:p-5 rounded-full backdrop-blur-md group-hover:bg-white group-hover:text-emerald-600 transition-all relative z-10">
+                <HiOutlineChatAlt2 className="text-xl sm:text-2xl" />
               </div>
             </button>
           )

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import FluxLoader from "../../../components/FluxLoader";
 
 const Register = () => {
   const [username, setUsername] = useState("");
@@ -9,6 +10,16 @@ const Register = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const { handleRegister, loading } = useAuth();
   const navigate = useNavigate();
+  const pageRef = useRef(null);
+
+  const handleMouseMove = (e) => {
+    if (!pageRef.current) return;
+    const rect = pageRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    pageRef.current.style.setProperty("--mx", `${x}px`);
+    pageRef.current.style.setProperty("--my", `${y}px`);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,21 +39,20 @@ const Register = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)]">
-        <div className="w-full max-w-md bg-[rgba(10,16,32,0.76)] p-12 rounded-3xl border border-white/10 shadow-[0_35px_100px_rgba(0,0,0,0.45)] text-center backdrop-blur-2xl">
-          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">
-            Setting up your <span className="text-emerald-400">Profile</span>...
-          </h2>
-          <p className="text-slate-400 mt-2 text-sm italic">
-            Getting things ready for the future of commerce.
-          </p>
-        </div>
+        <FluxLoader
+          title="Setting Up Profile"
+          subtitle="Preparing your account for negotiation"
+        />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 selection:bg-emerald-400/30 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.12),transparent_26%),linear-gradient(180deg,#050816_0%,#02050d_100%)]">
+    <div
+      ref={pageRef}
+      onMouseMove={handleMouseMove}
+      className="mouse-glow-surface min-h-screen flex items-center justify-center px-4 selection:bg-emerald-400/30 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.12),transparent_26%),linear-gradient(180deg,#050816_0%,#02050d_100%)]"
+    >
       <div className="w-full max-w-md bg-[rgba(10,16,32,0.76)] p-8 rounded-[2.5rem] border border-white/10 shadow-[0_35px_100px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
         <div className="mb-8 text-center">
           <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic">

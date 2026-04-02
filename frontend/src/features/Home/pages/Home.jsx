@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React, { memo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { HiOutlineUser, HiOutlineLogin } from "react-icons/hi";
 
@@ -96,9 +96,23 @@ SiteFooter.displayName = "SiteFooter";
 
 const Home = () => {
   const navigate = useNavigate();
+  const containerRef = useRef(null);
+
+  const handleMouseMove = (e) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    containerRef.current.style.setProperty("--mx", `${x}px`);
+    containerRef.current.style.setProperty("--my", `${y}px`);
+  };
 
   return (
-    <div className="min-h-screen text-white flex flex-col items-center justify-center p-6 selection:bg-emerald-400 selection:text-slate-950 overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.18),transparent_32%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.16),transparent_30%),linear-gradient(180deg,#050816_0%,#02050d_100%)]">
+    <div
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      className="mouse-glow-surface min-h-screen text-white flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-emerald-400 selection:text-slate-950 overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.18),transparent_32%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.16),transparent_30%),linear-gradient(180deg,#050816_0%,#02050d_100%)]"
+    >
       <AuthNav
         onLogin={() => navigate(ROUTES.LOGIN)}
         onRegister={() => navigate(ROUTES.REGISTER)}
@@ -110,10 +124,10 @@ const Home = () => {
         aria-hidden="true"
       />
 
-      <main className="relative z-10 text-center max-w-4xl">
+      <main className="relative z-10 text-center max-w-4xl px-2 sm:px-0">
         <Badge />
 
-        <h1 className="text-7xl md:text-7xl font-black tracking-tighter uppercase leading-[0.96] mb-10">
+        <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tighter uppercase leading-[0.96] mb-8 sm:mb-10">
           Stop Buying. <br />
           <span
             className="text-slate-300 italic"
@@ -126,7 +140,7 @@ const Home = () => {
           </span>
         </h1>
 
-        <p className="text-lg md:text-xl text-slate-400 mb-14 max-w-xl mx-auto leading-relaxed font-medium">
+        <p className="text-base sm:text-lg md:text-xl text-slate-400 mb-10 sm:mb-14 max-w-xl mx-auto leading-relaxed font-medium px-2 sm:px-0">
           Experience the future of shopping with{" "}
           <span className="text-white">Deal Breaker</span>. Negotiate in
           real-time with Alex, our expert AI shark, and score the lowest prices
@@ -139,7 +153,9 @@ const Home = () => {
         />
       </main>
 
-      <SiteFooter />
+      <div className="hidden md:block w-full">
+        <SiteFooter />
+      </div>
     </div>
   );
 };

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import FluxLoader from "../../../components/FluxLoader";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -8,6 +9,16 @@ const Login = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const { handleLogin, loading } = useAuth();
   const navigate = useNavigate();
+  const pageRef = useRef(null);
+
+  const handleMouseMove = (e) => {
+    if (!pageRef.current) return;
+    const rect = pageRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    pageRef.current.style.setProperty("--mx", `${x}px`);
+    pageRef.current.style.setProperty("--my", `${y}px`);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,18 +39,20 @@ const Login = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),linear-gradient(180deg,#050816_0%,#02050d_100%)]">
-        <div className="w-full max-w-md bg-[rgba(10,16,32,0.76)] p-12 rounded-[2.5rem] border border-white/10 shadow-[0_35px_100px_rgba(0,0,0,0.45)] text-center backdrop-blur-2xl">
-          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-          <h2 className="text-2xl font-black text-white tracking-tight italic uppercase">
-            Verifying <span className="text-emerald-400">Access</span>...
-          </h2>
-        </div>
+        <FluxLoader
+          title="Verifying Access"
+          subtitle="Checking your account and session"
+        />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 text-white selection:bg-emerald-400/30 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.12),transparent_26%),linear-gradient(180deg,#050816_0%,#02050d_100%)]">
+    <div
+      ref={pageRef}
+      onMouseMove={handleMouseMove}
+      className="mouse-glow-surface min-h-screen flex items-center justify-center px-4 text-white selection:bg-emerald-400/30 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.12),transparent_26%),linear-gradient(180deg,#050816_0%,#02050d_100%)]"
+    >
       <div className="w-full max-w-md bg-[rgba(10,16,32,0.76)] p-10 rounded-[2.5rem] border border-white/10 shadow-[0_35px_100px_rgba(0,0,0,0.45)] relative overflow-hidden backdrop-blur-2xl">
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-400/10 blur-[80px] rounded-full"></div>
         <div className="absolute -bottom-20 -left-16 w-40 h-40 bg-amber-400/10 blur-[80px] rounded-full"></div>

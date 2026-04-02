@@ -70,3 +70,139 @@ body {
     rgba(245, 158, 11, 0.95)
   );
 }
+
+.mouse-glow-surface {
+  position: relative;
+  overflow: hidden;
+}
+
+.mouse-glow-surface::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  width: 42rem;
+  height: 42rem;
+  left: calc(var(--mx, 50%) - 21rem);
+  top: calc(var(--my, 50%) - 21rem);
+  background: radial-gradient(
+    circle,
+    rgba(45, 212, 191, 0.12) 0%,
+    rgba(245, 158, 11, 0.08) 40%,
+    transparent 72%
+  );
+  opacity: var(--glow-opacity, 0.65);
+  transition:
+    left 0.18s linear,
+    top 0.18s linear,
+    opacity 0.25s ease;
+  z-index: 0;
+}
+
+.loader-orbit {
+  position: relative;
+  width: 92px;
+  height: 92px;
+}
+
+.loader-orbit-core {
+  position: absolute;
+  inset: 34px;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    rgba(45, 212, 191, 0.95),
+    rgba(45, 212, 191, 0.35)
+  );
+  box-shadow: 0 0 30px rgba(45, 212, 191, 0.45);
+  animation: fluxPulse 1.8s ease-in-out infinite;
+}
+
+.loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2px solid transparent;
+}
+
+.loader-ring-a {
+  border-top-color: rgba(45, 212, 191, 0.95);
+  border-right-color: rgba(45, 212, 191, 0.35);
+  animation: fluxSpin 1.2s linear infinite;
+}
+
+.loader-ring-b {
+  inset: 8px;
+  border-left-color: rgba(245, 158, 11, 0.9);
+  border-bottom-color: rgba(245, 158, 11, 0.35);
+  animation: fluxSpinReverse 1.6s linear infinite;
+}
+
+.loader-ring-c {
+  inset: 16px;
+  border-top-color: rgba(148, 163, 184, 0.8);
+  border-right-color: rgba(148, 163, 184, 0.3);
+  animation: fluxSpin 2.4s linear infinite;
+}
+
+.loader-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: rgba(45, 212, 191, 0.95);
+  box-shadow: 0 0 14px rgba(45, 212, 191, 0.5);
+  animation: fluxDot 1s ease-in-out infinite;
+}
+
+.loader-dot-delay-1 {
+  animation-delay: 0.12s;
+}
+
+.loader-dot-delay-2 {
+  animation-delay: 0.24s;
+}
+
+@keyframes fluxSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fluxSpinReverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes fluxPulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes fluxDot {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.42;
+  }
+  50% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .mouse-glow-surface::before {
+    width: 24rem;
+    height: 24rem;
+    left: calc(var(--mx, 50%) - 12rem);
+    top: calc(var(--my, 50%) - 12rem);
+    opacity: 0.45;
+  }
+}
