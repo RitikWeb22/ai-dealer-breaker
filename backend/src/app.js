@@ -20,6 +20,7 @@ app.use(
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-eval'", 'https://c.daily.co'],
                 imgSrc: [
                     "'self'",
                     'data:',
@@ -34,6 +35,8 @@ app.use(
                     'wss://*.vapi.ai',
                     'https://*.daily.co',
                     'wss://*.daily.co',
+                    'https://o77906.ingest.sentry.io',
+                    'https://*.ingest.sentry.io',
                 ],
                 mediaSrc: ["'self'", 'blob:'],
             },
